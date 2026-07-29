@@ -220,7 +220,8 @@ class Tui:
             self.screen.addnstr(height - 3, 1, selected.executable, width - 2)
         self.screen.attron(curses.A_REVERSE)
         footer = "Enter launch  s settings  a add exe  f favorite  r rescan  q quit"
-        self.screen.addnstr(height - 1, 0, footer.ljust(width), width)
+        footer_width = max(0, width - 1)
+        self.screen.addnstr(height - 1, 0, footer.ljust(footer_width), footer_width)
         self.screen.attroff(curses.A_REVERSE)
         self.screen.addnstr(height - 2, 1, self.message, width - 2)
         self.screen.refresh()
@@ -269,7 +270,8 @@ class Tui:
             for index, (label, value) in enumerate(entries, start=2):
                 self.screen.addnstr(index, 2, f"{index - 2 + 1}. {label}", width - 4)
                 self.screen.addnstr(index, 24, value, width - 26, curses.A_DIM)
-            self.screen.addnstr(height - 1, 0, "1-5 select  Esc back".ljust(width), width, curses.A_REVERSE)
+            footer_width = max(0, width - 1)
+            self.screen.addnstr(height - 1, 0, "1-5 select  Esc back".ljust(footer_width), footer_width, curses.A_REVERSE)
             self.screen.refresh()
             key = self.screen.getch()
             if key in (27, ord("q"), ord("5")):
