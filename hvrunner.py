@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,7 @@ def default_config() -> dict[str, Any]:
         "proton_path": str(DEFAULT_PROTON),
         "compat_client_path": str(DEFAULT_COMPAT_ROOT),
         "custom_prefix_name": ".hvrunner-proton",
+        "enforce_all_cpus": True,
         "favorites": [],
         "custom_games": [],
     }
@@ -162,9 +164,78 @@ def custom_launch_command(game: Game, config: dict[str, Any]) -> tuple[list[str]
     return [mangohud, str(proton), "run", str(executable), *game.launch_args], environment
 
 
+def matching_game_pids(executable_name: str, install_dir: str) -> list[int]:
+    expected_comm = executable_name[:15]
+    expected_cwd = Path(install_dir).resolve()
+    matches: list[int] = []
+    for process_dir in Path("/proc").iterdir():
+        if not process_dir.name.isdigit():
+            continue
+        try:
+            comm = (process_dir / "comm").read_text().strip()
+            cwd = (process_dir / "cwd").resolve()
+        except (FileNotFoundError, PermissionError, OSError):
+            continue
+        if comm == expected_comm and cwd == expected_cwd:
+            matches.append(int(process_dir.name))
+    return matches
+
+
+def set_full_affinity(pid: int, cpus: set[int]) -> None:
+    task_dir = Path(f"/proc/{pid}/task")
+    try:
+        thread_ids = [int(path.name) for path in task_dir.iterdir() if path.name.isdigit()]
+    except (FileNotFoundError, PermissionError, OSError):
+        return
+    for thread_id in thread_ids:
+        try:
+            if os.sched_getaffinity(thread_id) != cpus:
+                os.sched_setaffinity(thread_id, cpus)
+        except (ProcessLookupError, PermissionError, OSError):
+            continue
+
+
+def affinity_watch(executable_name: str, install_dir: str) -> None:
+    cpus = set(os.sched_getaffinity(0))
+    startup_deadline = time.monotonic() + 120
+    missing_since: float | None = None
+    game_seen = False
+    while True:
+        matches = matching_game_pids(executable_name, install_dir)
+        now = time.monotonic()
+        if matches:
+            game_seen = True
+            missing_since = None
+            for pid in matches:
+                set_full_affinity(pid, cpus)
+        elif not game_seen:
+            if now >= startup_deadline:
+                return
+        else:
+            if missing_since is None:
+                missing_since = now
+            elif now - missing_since >= 3:
+                return
+        time.sleep(0.25)
+
+
 def launch(game: Game, config: dict[str, Any]) -> None:
     command, environment = custom_launch_command(game, config)
     subprocess.Popen(command, cwd=game.install_dir, env=environment, start_new_session=True)
+    if config.get("enforce_all_cpus", True):
+        subprocess.Popen(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--affinity-watch",
+                Path(game.executable).name,
+                game.install_dir,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
 
 
 class Tui:
@@ -340,7 +411,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="hvrunner terminal game launcher")
     parser.add_argument("--list", action="store_true", help="print discovered games without opening the TUI")
     parser.add_argument("--init-config", action="store_true", help="write default configuration if it is absent")
+    parser.add_argument("--affinity-watch", nargs=2, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.affinity_watch:
+        affinity_watch(args.affinity_watch[0], args.affinity_watch[1])
+        return 0
     path = config_path()
     try:
         config = load_config(path)

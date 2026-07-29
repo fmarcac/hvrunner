@@ -9,6 +9,10 @@ folder scripts or start the Steam client.
 MangoHud starts with the full metrics overlay for every game. Press Right Shift
 and F12 to hide or show it.
 
+hvrunner keeps every game thread available to all CPU cores while the game is
+running. This prevents launchers and games from leaving restrictive affinity
+masks in place.
+
 ## Run
 
 ```bash
