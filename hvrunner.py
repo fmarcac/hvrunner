@@ -13,6 +13,7 @@ import curses
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -133,9 +134,12 @@ def library(config: dict[str, Any]) -> list[Game]:
 
 def custom_launch_command(game: Game, config: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
     proton = Path(str(config["proton_path"])).expanduser()
+    mangohud = shutil.which("mangohud")
     executable = Path(game.executable)
     if not proton.is_file():
         raise RuntimeError(f"Proton is unavailable: {proton}")
+    if not mangohud:
+        raise RuntimeError("MangoHud is unavailable")
     if not executable.is_file():
         raise RuntimeError(f"game executable is unavailable: {executable}")
     compat_client_path = Path(str(config["compat_client_path"])).expanduser()
@@ -151,9 +155,11 @@ def custom_launch_command(game: Game, config: dict[str, Any]) -> tuple[list[str]
         "WINEDEBUG": "-all",
         "PROTON_USE_XALIA": "0",
         "DISABLE_GAMESCOPE_WSI": "1",
+        "MANGOHUD": "1",
+        "MANGOHUD_CONFIG": "full,toggle_hud=Shift_R+F12",
     })
     environment.pop("PROTON_ENABLE_WAYLAND", None)
-    return [str(proton), "run", str(executable), *game.launch_args], environment
+    return [mangohud, str(proton), "run", str(executable), *game.launch_args], environment
 
 
 def launch(game: Game, config: dict[str, Any]) -> None:

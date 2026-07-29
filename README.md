@@ -6,6 +6,9 @@ Terminal launcher for standalone Windows games on Linux.
 selected game directly with the configured Proton build. It does not call game
 folder scripts or start the Steam client.
 
+MangoHud starts with the full metrics overlay for every game. Press Right Shift
+and F12 to hide or show it.
+
 ## Run
 
 ```bash
