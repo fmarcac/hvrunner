@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """hvrunner terminal game library and Proton launcher.
 
-hvrunner is self-contained: custom Windows games are launched
-directly with the configured Proton build.  It never calls per-game run.sh
-scripts or depends on game-folder launcher wrappers.
+hvrunner launches custom Windows games with the configured Proton build through
+umu. It never calls per-game run.sh scripts or depends on game-folder launcher
+wrappers.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from typing import Any
 APP_NAME = "hvrunner"
 DEFAULT_COMPAT_ROOT = Path.home() / ".local/share/Steam"
 DEFAULT_PROTON = DEFAULT_COMPAT_ROOT / "compatibilitytools.d/Proton-GE11-1-LinUwUx/proton"
+DEFAULT_UMU = Path("/usr/bin/umu-run")
 DEFAULT_CUSTOM_ROOT = Path("/mnt/data/games")
 
 
@@ -54,7 +55,7 @@ def default_config() -> dict[str, Any]:
     return {
         "library_roots": [str(DEFAULT_CUSTOM_ROOT)],
         "proton_path": str(DEFAULT_PROTON),
-        "compat_client_path": str(DEFAULT_COMPAT_ROOT),
+        "umu_path": str(DEFAULT_UMU),
         "custom_prefix_name": ".hvrunner-proton",
         "enforce_all_cpus": True,
         "favorites": [],
@@ -135,33 +136,56 @@ def library(config: dict[str, Any]) -> list[Game]:
 
 
 def custom_launch_command(game: Game, config: dict[str, Any]) -> tuple[list[str], dict[str, str]]:
-    proton = Path(str(config["proton_path"])).expanduser()
+    configured_proton = Path(str(config["proton_path"])).expanduser()
+    proton = configured_proton.parent if configured_proton.name == "proton" else configured_proton
+    umu = Path(str(config["umu_path"])).expanduser()
     mangohud = shutil.which("mangohud")
+    gamemoderun = shutil.which("gamemoderun")
     executable = Path(game.executable)
-    if not proton.is_file():
-        raise RuntimeError(f"Proton is unavailable: {proton}")
+    if not (proton / "proton").is_file() or not (proton / "toolmanifest.vdf").is_file():
+        raise RuntimeError(f"Proton runtime is unavailable: {proton}")
+    if not umu.is_file():
+        raise RuntimeError(f"umu is unavailable: {umu}")
     if not mangohud:
         raise RuntimeError("MangoHud is unavailable")
     if not executable.is_file():
         raise RuntimeError(f"game executable is unavailable: {executable}")
-    compat_client_path = Path(str(config["compat_client_path"])).expanduser()
-    if not compat_client_path.is_dir():
-        raise RuntimeError(f"Proton compatibility client path is unavailable: {compat_client_path}")
     prefix = Path(game.install_dir) / str(config["custom_prefix_name"])
     prefix.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     environment.update({
-        "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(compat_client_path),
-        "STEAM_COMPAT_DATA_PATH": str(prefix),
-        "WINEPREFIX": str(prefix / "pfx"),
+        "GAMEID": "0",
+        "PROTONPATH": str(proton),
+        "WINEPREFIX": str(prefix),
         "WINEDEBUG": "-all",
         "PROTON_USE_XALIA": "0",
         "DISABLE_GAMESCOPE_WSI": "1",
         "MANGOHUD": "1",
         "MANGOHUD_CONFIG": "full,toggle_hud=Shift_R+F12",
     })
+
+    if executable.name.casefold() == "acblackflag.exe":
+        environment.update({
+            "DXVK_ENABLE_NVAPI": "1",
+            # Native DLSS frame generation and Smooth Motion must not run together.
+            "NVPRESENT_ENABLE_SMOOTH_MOTION": "0",
+        })
+        if os.environ.get("ACBF_VERIFY_DLSS") == "1":
+            log_path = Path(game.install_dir) / "logs"
+            log_path.mkdir(exist_ok=True)
+            environment.update({
+                "DXVK_NVAPI_SET_NGX_DEBUG_OPTIONS": "DLSSIndicator=1024,DLSSGIndicator=2",
+                "DXVK_NVAPI_LOG_LEVEL": "info",
+                "DXVK_NVAPI_LOG_PATH": str(log_path),
+            })
+        else:
+            environment["DXVK_NVAPI_SET_NGX_DEBUG_OPTIONS"] = "DLSSIndicator=0,DLSSGIndicator=0"
+
     environment.pop("PROTON_ENABLE_WAYLAND", None)
-    return [mangohud, str(proton), "run", str(executable), *game.launch_args], environment
+    command = [mangohud, str(umu), str(executable), *game.launch_args]
+    if gamemoderun:
+        command.insert(0, gamemoderun)
+    return command, environment
 
 
 def matching_game_pids(executable_name: str, install_dir: str) -> list[int]:
@@ -338,7 +362,7 @@ class Tui:
             height, width = self.screen.getmaxyx()
             entries = [
                 ("Proton", str(self.config["proton_path"])),
-                ("Proton client path", str(self.config["compat_client_path"])),
+                ("umu runner", str(self.config["umu_path"])),
                 ("Add library", "Scan immediate subdirectories for .exe files"),
                 ("Remove library", ", ".join(self.config["library_roots"]) or "None"),
                 ("Back", "Return to library"),
@@ -359,9 +383,9 @@ class Tui:
                     self.config["proton_path"] = str(Path(value).expanduser())
                     save_config(self.path, self.config)
             elif key == ord("2"):
-                value = self.prompt("Proton client path:", str(self.config["compat_client_path"]))
+                value = self.prompt("umu runner:", str(self.config["umu_path"]))
                 if value:
-                    self.config["compat_client_path"] = str(Path(value).expanduser())
+                    self.config["umu_path"] = str(Path(value).expanduser())
                     save_config(self.path, self.config)
             elif key == ord("3"):
                 value = self.prompt("Custom library folder:")
@@ -410,6 +434,7 @@ class Tui:
 def main() -> int:
     parser = argparse.ArgumentParser(description="hvrunner terminal game launcher")
     parser.add_argument("--list", action="store_true", help="print discovered games without opening the TUI")
+    parser.add_argument("--launch", metavar="NAME", help="launch the single game matching NAME")
     parser.add_argument("--init-config", action="store_true", help="write default configuration if it is absent")
     parser.add_argument("--affinity-watch", nargs=2, help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -427,6 +452,14 @@ def main() -> int:
                 print(f"Configuration already exists: {path}")
             return 0
         games = library(config)
+        if args.launch:
+            query = args.launch.casefold()
+            matches = [game for game in games if query in game.name.casefold()]
+            if len(matches) != 1:
+                raise RuntimeError(f"--launch matched {len(matches)} games; use a more specific name")
+            launch(matches[0], config)
+            print(f"Launched {matches[0].name}")
+            return 0
         if args.list:
             for game in games:
                 target = game.appid if game.source == "Steam" else game.executable

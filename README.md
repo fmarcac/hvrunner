@@ -3,8 +3,15 @@
 Terminal launcher for standalone Windows games on Linux.
 
 `hvrunner` scans custom library folders for Windows executables and launches a
-selected game directly with the configured Proton build. It does not call game
-folder scripts or start the Steam client.
+selected game with the configured Proton build through `umu`. It does not call
+game-folder scripts or start the Steam client.
+
+`umu` supplies the Steam Linux Runtime container that Proton requires for
+non-Steam games. On Arch Linux, install it with:
+
+```bash
+sudo pacman -S umu-launcher
+```
 
 MangoHud starts with the full metrics overlay for every game. Press Right Shift
 and F12 to hide or show it.
@@ -17,6 +24,13 @@ masks in place.
 
 ```bash
 hvrunner
+hvrunner --launch Bfresynced
+```
+
+For a one-launch Black Flag DLSS and frame-generation indicator check:
+
+```bash
+ACBF_VERIFY_DLSS=1 hvrunner --launch Bfresynced
 ```
 
 ## Controls
@@ -32,5 +46,5 @@ hvrunner
 
 Configuration is saved to `~/.config/hvrunner/config.json` on the first change.
 By default, hvrunner scans `/mnt/data/games` and uses the installed
-`Proton-GE11-1-LinUwUx` runtime. Library folders, Proton path, and the Proton
-compatibility path can be changed in Settings.
+`Proton-GE11-1-LinUwUx` runtime. Library folders, Proton path, and the `umu`
+runner path can be changed in Settings.
