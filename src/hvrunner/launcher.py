@@ -191,7 +191,6 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
             start_new_session=True,
         )
     except OSError as error:
-        handle.close()
         raise HvrunnerError(f"cannot start {game.name}: {error}") from error
     finally:
         # Popen duplicated the descriptor, so this copy is no longer needed.

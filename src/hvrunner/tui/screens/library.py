@@ -1,0 +1,72 @@
+"""Library browser."""
+
+from __future__ import annotations
+
+from ...constants import APP_NAME
+from .. import keys, layout
+from ..widgets import Rect, letterspace
+from . import preview
+from .base import Screen
+
+KEYS = "enter run   l logs   s settings   f favourite   a add   r rescan   ? keys   q quit"
+
+
+class LibraryScreen(Screen):
+    def draw(self) -> Rect:
+        app = self.app
+        favourites = sum(1 for game in app.games if game.favorite)
+        meta = "1 title" if len(app.games) == 1 else f"{len(app.games)} titles"
+        if favourites:
+            meta += f" {self.paint.glyph('dot')} {favourites} favourite"
+
+        inner = self.paint.frame(letterspace(APP_NAME.upper()), meta, KEYS)
+        # Below this there is no room for even one row after the padding.
+        if inner.height < 4:
+            return inner
+
+        panes = layout.split(inner)
+        if not app.games:
+            self._draw_empty(panes.items)
+        else:
+            star = self.paint.glyph("star")
+            labels = [f"{star if game.favorite else ' '} {game.name}" for game in app.games]
+            self.paint.rows(panes.items, labels, app.selected)
+
+        if panes.split and panes.divider_x is not None:
+            self.paint.divider(panes.divider_x, inner.top, inner.height - 1)
+            current = app.current
+            if current and panes.detail:
+                preview.draw(self.paint, panes.detail, current, app.config)
+
+        self.paint.status(inner, app.status)
+        return inner
+
+    def _draw_empty(self, area: Rect) -> None:
+        self.paint.text(area.top, area.left, "No games yet.", area.width, "text", bold=True)
+        self.paint.text(area.top + 2, area.left, "s  add a library folder", area.width, "label")
+        self.paint.text(area.top + 3, area.left, "a  add a single executable", area.width, "label")
+
+    def handle(self, key: int) -> bool:
+        app = self.app
+        if keys.is_leave(key):
+            return False
+        if keys.is_down(key):
+            app.move(1)
+        elif keys.is_up(key):
+            app.move(-1)
+        elif keys.is_confirm(key):
+            app.run_game()
+        elif key == ord("f"):
+            app.toggle_favourite()
+        elif key == ord("r"):
+            app.rescan()
+            app.status = "1 title" if len(app.games) == 1 else f"{len(app.games)} titles"
+        elif key == ord("a"):
+            app.add_executable()
+        elif key == ord("l"):
+            app.open_logs()
+        elif key == ord("s"):
+            app.open_settings()
+        elif key == ord("?"):
+            app.open_help()
+        return True

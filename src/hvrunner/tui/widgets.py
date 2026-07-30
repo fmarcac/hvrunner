@@ -61,6 +61,24 @@ def letterspace(text: str, gap: int = 1) -> str:
     return (" " * gap).join(text)
 
 
+def wrap(text: str, width: int) -> list[str]:
+    """Greedy word wrap. A word longer than width is left to be clipped."""
+    if width <= 0:
+        return []
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > width and current:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
 class Painter:
     """A themed drawing surface over the curses screen."""
 
@@ -143,6 +161,27 @@ class Painter:
         bar = self.glyph("bar") if selected else " "
         self.text(y, x, bar, 1, "linux", bold=True)
         self.text(y, x + 2, fit(text, width - 2, self.glyph("ellipsis")), width - 2, role, bold=selected)
+
+    def rows(self, area: Rect, labels: list[str], selected: int) -> None:
+        """A scrolling list that keeps the cursor near the middle."""
+        if area.height <= 0 or not labels:
+            return
+        start = max(0, min(selected - area.height // 2, len(labels) - area.height))
+        for offset, label in enumerate(labels[start : start + area.height]):
+            index = start + offset
+            chosen = index == selected
+            self.row(area.top + offset, area.left, area.width, label, "linux" if chosen else "text", chosen)
+
+    def status(self, inner: Rect, message: str) -> None:
+        if not message:
+            return
+        self.text(
+            inner.bottom,
+            inner.left + 1,
+            fit(message, inner.width - 2, self.glyph("ellipsis")),
+            inner.width - 2,
+            "warn",
+        )
 
     def field(
         self,

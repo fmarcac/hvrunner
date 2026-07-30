@@ -31,7 +31,7 @@ def watcher_command(executable_name: str, install_dir: str) -> list[str]:
     installed = shutil.which("hvrunner")
     if installed:
         return [installed, "--affinity-watch", executable_name, install_dir]
-    shim = Path(__file__).resolve().parents[2] / "hvrunner.py"
+    shim = Path(__file__).resolve().parents[2] / "bin" / "hvrunner"
     return [sys.executable, str(shim), "--affinity-watch", executable_name, install_dir]
 
 

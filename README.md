@@ -21,13 +21,13 @@ Standard library only, no Python runtime dependencies.
 Run from a checkout:
 
 ```bash
-./hvrunner.py
+./bin/hvrunner
 ```
 
 Put it on PATH:
 
 ```bash
-ln -s "$PWD/run.sh" ~/.local/bin/hvrunner
+ln -s "$PWD/bin/hvrunner" ~/.local/bin/hvrunner
 ```
 
 Or install the package, which provides the same command:

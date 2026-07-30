@@ -23,6 +23,8 @@ where = ["src"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# Keep tool caches out of the repository root.
+cache-dir = ".cache/ruff"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RET", "PTH"]
@@ -30,3 +32,4 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+cache_dir = ".cache/pytest"
