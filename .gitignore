@@ -1,2 +1,16 @@
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime state, never part of the tree.
+logs/
+*.log
+config.json
+config.json.tmp
