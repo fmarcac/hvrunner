@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...launcher import WINDOWS_SIDE_ENV, plan
+from ...environment import WINDOWS_SIDE_ENV
 from ...models import Game, HvrunnerError
-from ..widgets import Painter, Rect, fit
+from ...planning import plan
+from ..text import fit
+from ..widgets import Painter, Rect
 
 
 def draw(paint: Painter, area: Rect, game: Game, config: dict) -> None:

@@ -6,8 +6,9 @@ import contextlib
 import curses
 from typing import Any
 
+from .text import fit
 from .theme import Theme
-from .widgets import draw_text, fit
+from .widgets import draw_text
 
 MINIMUM_WIDTH = 24
 MINIMUM_HEIGHT = 7

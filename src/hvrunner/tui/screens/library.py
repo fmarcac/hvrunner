@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from ...constants import APP_NAME
 from .. import keys, layout
-from ..widgets import Rect, letterspace
+from ..text import letterspace
+from ..widgets import Rect
 from . import preview
 from .base import Screen
 

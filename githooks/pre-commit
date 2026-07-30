@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Enabled with: git config core.hooksPath githooks
+#
+# Runs the same script CI runs. Use git commit --no-verify only when you have a
+# reason, not as a habit.
+exec "$(git rev-parse --show-toplevel)/bin/check"

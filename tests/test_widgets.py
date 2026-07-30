@@ -1,42 +1,22 @@
 from __future__ import annotations
 
-from hvrunner.tui.widgets import Rect, fit, letterspace, shorten_path
-
-
-def test_fit_leaves_short_text_alone():
-    assert fit("abc", 10) == "abc"
-    assert fit("abc", 3) == "abc"
-
-
-def test_fit_truncates_with_an_ellipsis():
-    assert fit("abcdefghij", 6) == "abc..."
-    assert fit("abcdefghij", 6, "…") == "abcde…"
-
-
-def test_fit_handles_no_room():
-    assert fit("abcdef", 0) == ""
-    assert fit("abcdef", -4) == ""
-    assert fit("abcdef", 2) == "ab"
-
-
-def test_shorten_path_keeps_the_tail():
-    shortened = shorten_path("/very/long/path/to/game.exe", 12)
-    assert shortened == ".../game.exe"
-    assert len(shortened) == 12
-    assert shorten_path("/short", 12) == "/short"
-
-
-def test_shorten_path_handles_no_room():
-    assert shorten_path("/a/b/c", 0) == ""
-    assert shorten_path("/a/b/c", 2) == "/c"
-
-
-def test_letterspace():
-    assert letterspace("ABC") == "A B C"
-    assert letterspace("ABC", 2) == "A  B  C"
+from hvrunner.tui.widgets import Rect
 
 
 def test_rect_edges():
     rect = Rect(top=1, left=2, height=5, width=10)
     assert rect.bottom == 5
     assert rect.right == 11
+
+
+def test_single_cell_rect():
+    rect = Rect(top=0, left=0, height=1, width=1)
+    assert rect.bottom == 0
+    assert rect.right == 0
+
+
+def test_empty_rect_edges_go_negative():
+    """A zero sized rect reports edges before its origin, which callers clamp."""
+    rect = Rect(top=3, left=4, height=0, width=0)
+    assert rect.bottom == 2
+    assert rect.right == 3

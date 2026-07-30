@@ -10,7 +10,8 @@ from pathlib import Path
 
 from ...logs import LogReader, classify, recent_logs
 from .. import keys
-from ..widgets import Rect, fit
+from ..text import fit
+from ..widgets import Rect
 from .base import Screen
 
 KEYS = "j k scroll   pgup pgdn page   g G ends   f follow   n p switch log   esc back"

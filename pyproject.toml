@@ -28,7 +28,13 @@ cache-dir = ".cache/ruff"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RET", "PTH"]
+# The formatter owns line length, so the linter does not also police it.
 ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

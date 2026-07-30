@@ -1,0 +1,9 @@
+{
+  // Prose is hard wrapped at 80; tables and code blocks are exempt because
+  // wrapping either one damages it.
+  "MD013": { "line_length": 100, "tables": false, "code_blocks": false },
+  // Repeated headings are only a problem under the same parent.
+  "MD024": { "siblings_only": true },
+  // Bare URLs are fine in a README.
+  "MD034": false
+}

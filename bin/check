@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Every check that has to pass, in one place, so the pre-commit hook and CI
+# cannot drift apart. Pass --fix to apply what can be applied automatically.
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel 2>/dev/null || dirname "$(dirname "$(readlink -f "$0")")")" || exit 1
+
+PYTHON=${PYTHON:-python3}
+MODE=check
+[[ ${1:-} == --fix ]] && MODE=fix
+
+failed=()
+
+step() { printf '\033[36m::\033[0m %s\n' "$1"; }
+skip() { printf '\033[33m--\033[0m %s not installed, skipped\n' "$1"; }
+
+run() {
+    local name=$1
+    shift
+    step "$name"
+    if ! "$@"; then
+        failed+=("$name")
+    fi
+}
+
+if [[ $MODE == fix ]]; then
+    step "ruff format"
+    ruff format src tests bin/hvrunner
+    step "ruff check --fix"
+    ruff check --fix src tests
+    if command -v mdformat >/dev/null; then
+        step "mdformat"
+        mdformat --wrap 80 ./*.md
+    else
+        skip mdformat
+    fi
+fi
+
+if command -v ruff >/dev/null; then
+    run "ruff format" ruff format --check src tests bin/hvrunner
+    run "ruff check" ruff check src tests
+else
+    skip ruff
+fi
+
+if command -v markdownlint >/dev/null; then
+    run "markdownlint" markdownlint "**/*.md" --ignore-path .gitignore
+else
+    skip markdownlint
+fi
+
+run "pytest" "$PYTHON" -m pytest -q
+
+if ((${#failed[@]})); then
+    printf '\033[31m\nfailed: %s\033[0m\n' "${failed[*]}"
+    exit 1
+fi
+printf '\033[32m\nall checks passed\033[0m\n'

@@ -1,4 +1,4 @@
-"""Drawing primitives that clip rather than raise.
+"""A themed drawing surface that clips rather than raising.
 
 Every helper takes an explicit width and silently does nothing when there is no
 room. curses raises on a negative length and on the last cell of a window, and
@@ -12,6 +12,7 @@ import curses
 from dataclasses import dataclass
 from typing import Any
 
+from .text import fit, shorten_path
 from .theme import Theme
 
 
@@ -38,50 +39,7 @@ def draw_text(window: Any, y: int, x: int, text: str, width: int, attribute: int
         window.addnstr(y, x, text, width, attribute)
 
 
-def fit(text: str, width: int, ellipsis: str = "...") -> str:
-    if width <= 0:
-        return ""
-    if len(text) <= width:
-        return text
-    if width <= len(ellipsis):
-        return text[:width]
-    return text[: width - len(ellipsis)] + ellipsis
-
-
-def shorten_path(text: str, width: int, ellipsis: str = "...") -> str:
-    """Keep the tail of a path, which is the part that identifies it."""
-    if width <= 0 or len(text) <= width:
-        return text[:width] if width > 0 else ""
-    if width <= len(ellipsis):
-        return text[-width:]
-    return ellipsis + text[-(width - len(ellipsis)) :]
-
-
-def letterspace(text: str, gap: int = 1) -> str:
-    return (" " * gap).join(text)
-
-
-def wrap(text: str, width: int) -> list[str]:
-    """Greedy word wrap. A word longer than width is left to be clipped."""
-    if width <= 0:
-        return []
-    lines: list[str] = []
-    current = ""
-    for word in text.split():
-        candidate = f"{current} {word}".strip()
-        if len(candidate) > width and current:
-            lines.append(current)
-            current = word
-        else:
-            current = candidate
-    if current:
-        lines.append(current)
-    return lines
-
-
 class Painter:
-    """A themed drawing surface over the curses screen."""
-
     def __init__(self, screen: Any, theme: Theme):
         self.screen = screen
         self.theme = theme
@@ -127,8 +85,7 @@ class Painter:
             self.text(row, width - 1, self.glyph("v"), 1, "rule")
 
         if title:
-            label = f" {title} "
-            self.text(0, 2, label, max(0, width - 4), "linux", bold=True)
+            self.text(0, 2, f" {title} ", max(0, width - 4), "linux", bold=True)
         if meta:
             label = f" {meta} "
             start = max(2, width - 2 - len(label))

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from ..widgets import Rect, fit, letterspace
+from ..text import fit, letterspace
+from ..widgets import Rect
 from .base import Screen
 
 SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [

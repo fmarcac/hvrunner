@@ -140,6 +140,13 @@ silently switch to a larger sibling binary such as a `_Plus` variant.
 ## Development
 
 ```bash
-ruff check src tests
-python -m pytest
+./bin/check          # ruff format, ruff check, markdownlint, pytest
+./bin/check --fix    # apply the formatters first
+```
+
+`bin/check` is what CI runs and what the pre-commit hook runs, so there is one
+definition of green. Enable the hook with:
+
+```bash
+git config core.hooksPath githooks
 ```

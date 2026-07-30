@@ -4,12 +4,30 @@ import json
 
 from hvrunner.display import Monitor, focused_monitor, parse_monitors
 
-PAYLOAD = json.dumps([
-    {"name": "DP-3", "width": 2560, "height": 1440, "refreshRate": 200.013, "x": 0, "y": 0, "scale": 1.25,
-     "focused": True},
-    {"name": "HDMI-A-1", "width": 1920, "height": 1080, "refreshRate": 60.0, "x": 2560, "y": 0, "scale": 1.0,
-     "focused": False},
-])
+PAYLOAD = json.dumps(
+    [
+        {
+            "name": "DP-3",
+            "width": 2560,
+            "height": 1440,
+            "refreshRate": 200.013,
+            "x": 0,
+            "y": 0,
+            "scale": 1.25,
+            "focused": True,
+        },
+        {
+            "name": "HDMI-A-1",
+            "width": 1920,
+            "height": 1080,
+            "refreshRate": 60.0,
+            "x": 2560,
+            "y": 0,
+            "scale": 1.0,
+            "focused": False,
+        },
+    ]
+)
 
 
 def test_parses_every_monitor():

@@ -45,20 +45,39 @@ def game_dir(tmp_path):
 @pytest.fixture
 def config(fake_proton, fake_umu, tmp_path):
     values = default_config()
-    values.update({
-        "proton_path": str(fake_proton),
-        "umu_path": str(fake_umu),
-        "library_roots": [str(tmp_path)],
-    })
+    values.update(
+        {
+            "proton_path": str(fake_proton),
+            "umu_path": str(fake_umu),
+            "library_roots": [str(tmp_path)],
+        }
+    )
     return values
 
 
 @pytest.fixture
 def stub_tools(monkeypatch):
     """Make MangoHud and gamemode lookups deterministic."""
-    import hvrunner.launcher as launcher
+    import hvrunner.planning as planning
 
     def which(name):
         return f"/usr/bin/{name}" if name in {"mangohud", "gamemoderun"} else None
 
-    monkeypatch.setattr(launcher.shutil, "which", which)
+    monkeypatch.setattr(planning.shutil, "which", which)
+
+
+@pytest.fixture
+def game_factory(tmp_path):
+    """Build a game folder with an executable of a given name."""
+
+    def make(name: str = "ACBlackFlag.exe", folder: str = "G"):
+        from hvrunner.constants import CUSTOM_SOURCE
+        from hvrunner.models import Game
+
+        directory = tmp_path / folder
+        directory.mkdir(parents=True, exist_ok=True)
+        executable = directory / name
+        executable.write_text("stub")
+        return Game(directory.name, CUSTOM_SOURCE, str(directory), str(executable))
+
+    return make

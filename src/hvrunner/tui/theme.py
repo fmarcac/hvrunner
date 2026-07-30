@@ -21,15 +21,15 @@ import locale
 # mutates the terminal's own palette, does not reliably survive in every
 # terminal, and can leak into other programs. Fixed indices touch nothing.
 _ROLES: dict[str, int] = {
-    "text": 253,       # nord4  d8dee9
-    "rule": 59,        # nord3  4c566a
-    "label": 110,      # nord9  81a1c1
-    "linux": 116,      # nord8  88c0d0, also selection and headings
-    "windows": 139,    # nord15 b48ead
+    "text": 253,  # nord4  d8dee9
+    "rule": 59,  # nord3  4c566a
+    "label": 110,  # nord9  81a1c1
+    "linux": 116,  # nord8  88c0d0, also selection and headings
+    "windows": 139,  # nord15 b48ead
     "favourite": 222,  # nord13 ebcb8b
-    "ok": 150,         # nord14 a3be8c
-    "warn": 173,       # nord12 d08770
-    "error": 131,      # nord11 bf616a
+    "ok": 150,  # nord14 a3be8c
+    "warn": 173,  # nord12 d08770
+    "error": 131,  # nord11 bf616a
 }
 
 _FALLBACK: dict[str, int] = {
