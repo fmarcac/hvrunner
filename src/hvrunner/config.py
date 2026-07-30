@@ -23,9 +23,16 @@ def default_config() -> dict[str, Any]:
         "umu_path": str(DEFAULT_UMU),
         "custom_prefix_name": ".hvrunner-proton",
         "enforce_all_cpus": True,
-        # MANGOHUD_CONFIG already present in the environment wins over this, so a
-        # one-off override needs no config edit.
+        # Empty leaves MANGOHUD_CONFIG unset, so MangoHud reads the user's own
+        # ~/.config/MangoHud/MangoHud.conf. Setting it replaces that file wholesale
+        # rather than merging with it. MANGOHUD_CONFIG already in the environment
+        # wins over this either way.
         "mangohud_config": DEFAULT_MANGOHUD_CONFIG,
+        # Give vkd3d-proton and DXVK a persistent pipeline cache. umu only sets
+        # STEAM_COMPAT_SHADER_PATH, which vkd3d-proton does not read, so without
+        # this every launch recompiles pipelines and stutters as new shaders
+        # appear.
+        "shader_cache": True,
         # gamemoderun wraps the command. Turning this off silences the
         # "libgamemode.so: cannot open shared object file" noise from 32-bit and
         # in-container helpers, at the cost of gamemode's scheduling tweaks.

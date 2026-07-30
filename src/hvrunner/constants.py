@@ -18,16 +18,14 @@ DEFAULT_CUSTOM_ROOT = Path("/mnt/data/games")
 # stop matching after a rescan.
 CUSTOM_SOURCE = "Custom"
 
-# Deliberately not the "full" preset: full enables media_player, which polls
-# playerctld and logs an error per frame when no MPRIS player is active. The
-# user's own ~/.config/MangoHud/MangoHud.conf supplies the display options.
+# Empty on purpose, so MANGOHUD_CONFIG is left unset.
 #
-# mailbox rather than the application's choice: a compositor that has to rescale
-# a fullscreen surface holds a swapchain image while it does so, and with only
-# two images the game blocks on acquire and serialises on the compositor. A third
-# image lets it work ahead. Measured at 57 to 113 fps on an otherwise unchanged
-# setup, with the GPU at 52% both before and after.
-DEFAULT_MANGOHUD_CONFIG = "toggle_hud=Shift_R+F12,vulkan_present_mode=mailbox"
+# MANGOHUD_CONFIG in the environment REPLACES ~/.config/MangoHud/MangoHud.conf,
+# it does not merge with it. Setting it here threw away the user's whole HUD
+# layout. Leaving it unset means MangoHud reads their file, which is where HUD
+# content belongs. It also avoids the "full" preset, whose media_player module
+# logs an error on every poll when no MPRIS player is running.
+DEFAULT_MANGOHUD_CONFIG = ""
 
 # Names passed to the supervising process so it can undo what launch changed.
 RESTORE_MONITOR_ENV = "HVRUNNER_RESTORE_MONITOR"

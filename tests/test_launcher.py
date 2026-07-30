@@ -21,9 +21,45 @@ def test_environment_defaults(tmp_path, config, stub_tools, monkeypatch):
     monkeypatch.delenv("MANGOHUD_CONFIG", raising=False)
     _, env = build_command(make_game(tmp_path / "G", "Plain.exe"), config)
     assert env["MANGOHUD"] == "1"
-    assert env["MANGOHUD_CONFIG"] == DEFAULT_MANGOHUD_CONFIG
     assert env["WINEDEBUG"] == "-all"
     assert env["DISABLE_GAMESCOPE_WSI"] == "1"
+
+
+def test_mangohud_config_is_left_unset_by_default(tmp_path, config, stub_tools, monkeypatch):
+    """Setting it would replace the user's MangoHud.conf rather than merge with it."""
+    monkeypatch.delenv("MANGOHUD_CONFIG", raising=False)
+    assert DEFAULT_MANGOHUD_CONFIG == ""
+    _, env = build_command(make_game(tmp_path / "G", "Plain.exe"), config)
+    assert "MANGOHUD_CONFIG" not in env
+
+
+def test_mangohud_config_is_set_when_configured(tmp_path, config, stub_tools, monkeypatch):
+    monkeypatch.delenv("MANGOHUD_CONFIG", raising=False)
+    config["mangohud_config"] = "fps,frametime"
+    _, env = build_command(make_game(tmp_path / "G", "Plain.exe"), config)
+    assert env["MANGOHUD_CONFIG"] == "fps,frametime"
+
+
+def test_shader_cache_paths_are_set_and_created(tmp_path, config, stub_tools):
+    folder = tmp_path / "G"
+    _, env = build_command(make_game(folder, "Plain.exe"), config)
+    cache = folder / ".hvrunner-proton" / "shadercache"
+    # umu only sets STEAM_COMPAT_SHADER_PATH, which vkd3d-proton does not read.
+    assert env["VKD3D_SHADER_CACHE_PATH"] == str(cache)
+    assert env["DXVK_STATE_CACHE_PATH"] == str(cache)
+    assert cache.is_dir()
+
+
+def test_shader_cache_can_be_disabled(tmp_path, config, stub_tools):
+    config["shader_cache"] = False
+    _, env = build_command(make_game(tmp_path / "G", "Plain.exe"), config)
+    assert "VKD3D_SHADER_CACHE_PATH" not in env
+
+
+def test_shader_cache_preview_creates_nothing(tmp_path, config, stub_tools):
+    folder = tmp_path / "G"
+    plan(make_game(folder, "Plain.exe"), config)
+    assert not (folder / ".hvrunner-proton" / "shadercache").exists()
 
 
 def test_environment_mangohud_config_override_wins(tmp_path, config, stub_tools, monkeypatch):
@@ -242,13 +278,6 @@ def test_native_scale_without_hyprctl(config, monkeypatch):
     config["native_scale"] = True
     monkeypatch.setattr(launcher.display, "available", lambda: False)
     assert launcher._drop_to_native_scale(config) is None
-
-
-def test_default_mangohud_config_requests_mailbox():
-    """A rescaling compositor holds a swapchain image; a third one avoids the stall."""
-    from hvrunner.constants import DEFAULT_MANGOHUD_CONFIG
-
-    assert "vulkan_present_mode=mailbox" in DEFAULT_MANGOHUD_CONFIG
 
 
 def test_all_cpus_ignores_the_caller_mask():

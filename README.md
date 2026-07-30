@@ -90,7 +90,9 @@ change made in the interface.
 | `umu_path` | `/usr/bin/umu-run` | umu launcher |
 | `custom_prefix_name` | `.hvrunner-proton` | prefix folder, created inside the game folder |
 | `enforce_all_cpus` | `true` | keep game threads spread across every CPU |
-| `mangohud_config` | `toggle_hud=Shift_R+F12` | value for `MANGOHUD_CONFIG` |
+| `mangohud_config` | `""` (unset) | value for `MANGOHUD_CONFIG`; empty leaves your MangoHud.conf alone |
+| `shader_cache` | `true` | persistent vkd3d and DXVK pipeline cache |
+| `native_scale` | `false` | drop the output to scale 1 while a game runs |
 | `use_gamemode` | `true` | wrap the command in `gamemoderun` |
 | `enable_wayland` | `false` | set `PROTON_ENABLE_WAYLAND`, bypassing XWayland |
 | `extra_env` | `{}` | extra environment, applied last |
@@ -104,12 +106,24 @@ A `MANGOHUD_CONFIG` already in the environment takes precedence over
 `mangohud_config`, so a single run can be changed without editing the file:
 
 ```bash
-MANGOHUD_CONFIG=vulkan_present_mode=mailbox,present_mode hvrunner
+MANGOHUD_CONFIG=fps,frametime,present_mode hvrunner
 ```
 
-`mangohud_config` deliberately avoids the `full` preset. `full` enables the
-media player module, which logs an error on every poll when no MPRIS player is
-running. Put display options in `~/.config/MangoHud/MangoHud.conf` instead.
+`mangohud_config` is empty by default, and that matters: `MANGOHUD_CONFIG`
+**replaces** `~/.config/MangoHud/MangoHud.conf` rather than merging with it, so
+setting it discards your whole HUD layout. Leaving it unset lets MangoHud read
+your own file. It also avoids the `full` preset, whose media player module logs
+an error on every poll when no MPRIS player is running.
+
+`shader_cache` sets `VKD3D_SHADER_CACHE_PATH` and `DXVK_STATE_CACHE_PATH` to a
+directory inside the prefix. umu only sets `STEAM_COMPAT_SHADER_PATH`, which
+vkd3d-proton does not read, so without this every launch recompiles pipelines and
+stutters as new shaders appear.
+
+`native_scale` drops the output to scale 1 for the duration of a game and
+restores it afterwards. On a fractionally scaled output the compositor has to
+rescale a fullscreen game every frame, which rules out direct scanout. It is off
+by default because a mode change while a game holds the output can be disruptive.
 
 Affinity enforcement keeps every game thread available to all CPUs while the
 game runs, so launchers and games cannot leave a restrictive mask in place.

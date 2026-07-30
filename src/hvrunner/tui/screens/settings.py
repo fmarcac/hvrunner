@@ -124,6 +124,14 @@ class SettingsScreen(Screen):
                 self._role("enable_wayland", False),
             ),
             Setting(
+                "Shader cache",
+                "Keeps compiled pipelines between runs. Without it every launch "
+                "recompiles shaders as they appear, which shows up as frametime spikes.",
+                self._state("shader_cache", True, "on", "off"),
+                self._toggle("shader_cache", True),
+                self._role("shader_cache", True),
+            ),
+            Setting(
                 "Native scale while playing",
                 "Drops the output to scale 1 for the game and restores it afterwards. "
                 "A scaled output makes the compositor rescale every frame, which "

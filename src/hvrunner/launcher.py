@@ -22,6 +22,7 @@ from .models import Game, HvrunnerError
 NOTABLE_ENV = (
     "PROTONPATH",
     "WINEPREFIX",
+    "VKD3D_SHADER_CACHE_PATH",
     "MANGOHUD_CONFIG",
     "PROTON_ENABLE_WAYLAND",
     "DXVK_ENABLE_NVAPI",
@@ -144,9 +145,25 @@ def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> Launch
         "DISABLE_GAMESCOPE_WSI": "1",
         "MANGOHUD": "1",
     })
-    # An explicit MANGOHUD_CONFIG in the caller's environment wins, so present
-    # mode and logging can be changed for a single run without editing config.
-    environment["MANGOHUD_CONFIG"] = os.environ.get("MANGOHUD_CONFIG") or str(config["mangohud_config"])
+    # Only set MANGOHUD_CONFIG when there is something to say. It replaces the
+    # user's MangoHud.conf rather than merging, so an unnecessary value would
+    # silently discard their HUD layout.
+    mangohud_config = os.environ.get("MANGOHUD_CONFIG") or str(config.get("mangohud_config") or "")
+    if mangohud_config:
+        environment["MANGOHUD_CONFIG"] = mangohud_config
+
+    if config.get("shader_cache", True):
+        cache = prefix / "shadercache"
+        if prepare:
+            try:
+                cache.mkdir(parents=True, exist_ok=True)
+            except OSError as error:
+                raise HvrunnerError(f"cannot create shader cache {cache}: {error}") from error
+        # vkd3d-proton reads VKD3D_SHADER_CACHE_PATH; DXVK reads its own. umu
+        # sets neither, only STEAM_COMPAT_SHADER_PATH.
+        environment["VKD3D_SHADER_CACHE_PATH"] = str(cache)
+        environment["DXVK_STATE_CACHE_PATH"] = str(cache)
+
     environment.update(_game_environment(executable, game.install_dir, prepare))
 
     if config.get("enable_wayland"):
