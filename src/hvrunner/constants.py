@@ -21,7 +21,17 @@ CUSTOM_SOURCE = "Custom"
 # Deliberately not the "full" preset: full enables media_player, which polls
 # playerctld and logs an error per frame when no MPRIS player is active. The
 # user's own ~/.config/MangoHud/MangoHud.conf supplies the display options.
-DEFAULT_MANGOHUD_CONFIG = "toggle_hud=Shift_R+F12"
+#
+# mailbox rather than the application's choice: a compositor that has to rescale
+# a fullscreen surface holds a swapchain image while it does so, and with only
+# two images the game blocks on acquire and serialises on the compositor. A third
+# image lets it work ahead. Measured at 57 to 113 fps on an otherwise unchanged
+# setup, with the GPU at 52% both before and after.
+DEFAULT_MANGOHUD_CONFIG = "toggle_hud=Shift_R+F12,vulkan_present_mode=mailbox"
+
+# Names passed to the supervising process so it can undo what launch changed.
+RESTORE_MONITOR_ENV = "HVRUNNER_RESTORE_MONITOR"
+ENFORCE_AFFINITY_ENV = "HVRUNNER_ENFORCE_AFFINITY"
 
 # How deep to look for a game executable. Unreal-style layouts bury the binary
 # in Binaries/Win64.

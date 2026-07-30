@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .affinity import affinity_watch
+from .affinity import supervise
 from .config import load_config, save_config
 from .constants import APP_NAME, config_path
 from .launcher import launch, reap_children_automatically
@@ -41,7 +41,7 @@ def _print_latest_log() -> int:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.affinity_watch:
-        affinity_watch(args.affinity_watch[0], args.affinity_watch[1])
+        supervise(args.affinity_watch[0], args.affinity_watch[1])
         return 0
     reap_children_automatically()
     path = config_path()

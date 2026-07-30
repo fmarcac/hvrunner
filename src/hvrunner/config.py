@@ -33,6 +33,11 @@ def default_config() -> dict[str, Any]:
         # Proton's native Wayland backend, rather than presenting through
         # XWayland. Off keeps the historical behaviour.
         "enable_wayland": False,
+        # Drop the output to scale 1 while a game runs, then restore it. On a
+        # fractionally scaled output the compositor rescales the game every
+        # frame, which prevents direct scanout and caps the frame rate well
+        # below what the GPU can deliver.
+        "native_scale": False,
         # Applied last, so it wins over everything hvrunner sets.
         "extra_env": {},
         "favorites": [],

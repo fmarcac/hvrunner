@@ -8,11 +8,14 @@ import sys
 import time
 from pathlib import Path
 
+from . import display
 from .constants import (
     AFFINITY_ABSENCE_TIMEOUT,
     AFFINITY_POLL_INTERVAL,
     AFFINITY_STARTUP_TIMEOUT,
     COMM_MAX_LENGTH,
+    ENFORCE_AFFINITY_ENV,
+    RESTORE_MONITOR_ENV,
 )
 
 
@@ -74,7 +77,22 @@ def set_full_affinity(pid: int, cpus: set[int]) -> None:
             continue
 
 
-def affinity_watch(executable_name: str, install_dir: str) -> None:
+def supervise(executable_name: str, install_dir: str) -> None:
+    """Follow a game for its lifetime, then undo what launching it changed.
+
+    This process outlives the launcher, so it is the only thing that reliably
+    knows when the game is gone. Restoring the output scale has to happen here.
+    """
+    enforce = os.environ.get(ENFORCE_AFFINITY_ENV, "1") != "0"
+    restore = os.environ.get(RESTORE_MONITOR_ENV)
+    try:
+        affinity_watch(executable_name, install_dir, enforce=enforce)
+    finally:
+        if restore:
+            display.apply(restore)
+
+
+def affinity_watch(executable_name: str, install_dir: str, *, enforce: bool = True) -> None:
     cpus = all_cpus()
     startup_deadline = time.monotonic() + AFFINITY_STARTUP_TIMEOUT
     missing_since: float | None = None
@@ -85,8 +103,9 @@ def affinity_watch(executable_name: str, install_dir: str) -> None:
         if matches:
             game_seen = True
             missing_since = None
-            for pid in matches:
-                set_full_affinity(pid, cpus)
+            if enforce:
+                for pid in matches:
+                    set_full_affinity(pid, cpus)
         elif not game_seen:
             if now >= startup_deadline:
                 return

@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from . import display
 from .affinity import watcher_command
+from .constants import ENFORCE_AFFINITY_ENV, RESTORE_MONITOR_ENV
 from .logs import new_log_path, prune_logs
 from .models import Game, HvrunnerError
 
@@ -170,9 +172,27 @@ def build_command(game: Game, config: dict[str, Any]) -> tuple[list[str], dict[s
     return prepared.command, prepared.environment
 
 
+def _drop_to_native_scale(config: dict[str, Any]) -> str | None:
+    """Set the output to scale 1, returning the spec that restores it.
+
+    Returns None when nothing was changed, which is also what the caller wants
+    when hyprctl is absent or the output is already unscaled.
+    """
+    if not config.get("native_scale") or not display.available():
+        return None
+    monitor = display.focused_monitor()
+    if monitor is None or not monitor.scaled:
+        return None
+    restore = monitor.spec(monitor.scale)
+    if not display.apply(monitor.spec(1.0)):
+        return None
+    return restore
+
+
 def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     prepared = plan(game, config, prepare=True)
     log_path = new_log_path(game)
+    restore_monitor = _drop_to_native_scale(config)
     try:
         handle = log_path.open("w", buffering=1)
     except OSError as error:
@@ -191,21 +211,34 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
             start_new_session=True,
         )
     except OSError as error:
+        if restore_monitor:
+            display.apply(restore_monitor)
         raise HvrunnerError(f"cannot start {game.name}: {error}") from error
     finally:
         # Popen duplicated the descriptor, so this copy is no longer needed.
         handle.close()
 
-    if config.get("enforce_all_cpus", True):
+    enforce = bool(config.get("enforce_all_cpus", True))
+    # The supervisor is also what restores the output scale, so it has to run
+    # whenever either job is outstanding.
+    if enforce or restore_monitor:
+        supervisor_env = os.environ.copy()
+        supervisor_env[ENFORCE_AFFINITY_ENV] = "1" if enforce else "0"
+        if restore_monitor:
+            supervisor_env[RESTORE_MONITOR_ENV] = restore_monitor
         try:
             subprocess.Popen(
                 watcher_command(Path(game.executable).name, game.install_dir),
+                env=supervisor_env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
         except OSError as error:
-            raise HvrunnerError(f"{game.name} started, but the affinity watcher did not: {error}") from error
+            # Without the supervisor the scale would never come back.
+            if restore_monitor:
+                display.apply(restore_monitor)
+            raise HvrunnerError(f"{game.name} started, but the supervisor did not: {error}") from error
     prune_logs()
     return LaunchResult(pid=process.pid, log_path=log_path)

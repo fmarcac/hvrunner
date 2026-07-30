@@ -199,6 +199,58 @@ def test_notable_environment_is_ordered_and_filtered(tmp_path, config, stub_tool
     assert "GAMEID" not in names
 
 
+def test_native_scale_off_changes_nothing(tmp_path, config, stub_tools, monkeypatch):
+    import hvrunner.launcher as launcher
+
+    calls: list[str] = []
+    monkeypatch.setattr(launcher.display, "available", lambda: True)
+    monkeypatch.setattr(launcher.display, "apply", lambda spec: calls.append(spec) or True)
+    assert launcher._drop_to_native_scale(config) is None
+    assert calls == []
+
+
+def test_native_scale_drops_and_reports_the_restore_spec(tmp_path, config, stub_tools, monkeypatch):
+    import hvrunner.launcher as launcher
+    from hvrunner.display import Monitor
+
+    config["native_scale"] = True
+    monitor = Monitor("DP-3", 2560, 1440, 200.013, 0, 0, 1.25)
+    applied: list[str] = []
+    monkeypatch.setattr(launcher.display, "available", lambda: True)
+    monkeypatch.setattr(launcher.display, "focused_monitor", lambda: monitor)
+    monkeypatch.setattr(launcher.display, "apply", lambda spec: applied.append(spec) or True)
+
+    restore = launcher._drop_to_native_scale(config)
+    assert applied == ["DP-3,2560x1440@200.013,0x0,1"]
+    assert restore == "DP-3,2560x1440@200.013,0x0,1.25"
+
+
+def test_native_scale_skips_an_unscaled_output(config, monkeypatch):
+    import hvrunner.launcher as launcher
+    from hvrunner.display import Monitor
+
+    config["native_scale"] = True
+    monkeypatch.setattr(launcher.display, "available", lambda: True)
+    monkeypatch.setattr(launcher.display, "focused_monitor", lambda: Monitor("DP-3", 2560, 1440, 200.0, 0, 0, 1.0))
+    monkeypatch.setattr(launcher.display, "apply", lambda spec: True)
+    assert launcher._drop_to_native_scale(config) is None
+
+
+def test_native_scale_without_hyprctl(config, monkeypatch):
+    import hvrunner.launcher as launcher
+
+    config["native_scale"] = True
+    monkeypatch.setattr(launcher.display, "available", lambda: False)
+    assert launcher._drop_to_native_scale(config) is None
+
+
+def test_default_mangohud_config_requests_mailbox():
+    """A rescaling compositor holds a swapchain image; a third one avoids the stall."""
+    from hvrunner.constants import DEFAULT_MANGOHUD_CONFIG
+
+    assert "vulkan_present_mode=mailbox" in DEFAULT_MANGOHUD_CONFIG
+
+
 def test_all_cpus_ignores_the_caller_mask():
     import os
 

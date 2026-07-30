@@ -124,6 +124,15 @@ class SettingsScreen(Screen):
                 self._role("enable_wayland", False),
             ),
             Setting(
+                "Native scale while playing",
+                "Drops the output to scale 1 for the game and restores it afterwards. "
+                "A scaled output makes the compositor rescale every frame, which "
+                "prevents direct scanout and caps the frame rate.",
+                self._state("native_scale", False, "on", "off"),
+                self._toggle("native_scale", False),
+                self._role("native_scale", False),
+            ),
+            Setting(
                 "gamemode",
                 "Applies gamemode's scheduling changes. Off silences its dlopen warnings.",
                 self._state("use_gamemode", True, "on", "off"),
