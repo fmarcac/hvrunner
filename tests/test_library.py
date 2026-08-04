@@ -154,3 +154,41 @@ def test_malformed_custom_entries_are_skipped(config):
     config["library_roots"] = []
     config["custom_games"] = ["nonsense", {"executable": "/absent.exe"}, {}]
     assert custom_games(config, set()) == []
+
+
+def test_declared_entry_overrides_the_scanned_folder(tmp_path, config):
+    """Repointing a game must replace its scanned row, not sit beside it."""
+    folder = tmp_path / "BFResynced"
+    folder.mkdir()
+    (folder / "ACBlackFlag.exe").write_text("x")
+    (folder / "ACBlackFlag_Plus.exe").write_text("x")
+    config["custom_games"] = [
+        {
+            "name": "Black Flag Plus",
+            "executable": str(folder / "ACBlackFlag_Plus.exe"),
+            "install_dir": str(folder),
+        }
+    ]
+    games = custom_games(config, set())
+    assert [game.name for game in games] == ["Black Flag Plus"]
+    assert games[0].executable.endswith("ACBlackFlag_Plus.exe")
+
+
+def test_install_dir_defaults_to_the_executable_parent(tmp_path, config):
+    exe = tmp_path / "Solo" / "Solo.exe"
+    exe.parent.mkdir()
+    exe.write_text("x")
+    config["library_roots"] = []
+    config["custom_games"] = [{"name": "Solo", "executable": str(exe)}]
+    assert custom_games(config, set())[0].install_dir == str(exe.parent)
+
+
+def test_install_dir_is_used_when_given(tmp_path, config):
+    """An installed game lives inside its own prefix, so the folder must be explicit."""
+    target = tmp_path / "Witcher3"
+    exe = target / ".hvrunner-proton" / "pfx" / "drive_c" / "w3.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_text("x")
+    config["library_roots"] = []
+    config["custom_games"] = [{"name": "W3", "executable": str(exe), "install_dir": str(target)}]
+    assert custom_games(config, set())[0].install_dir == str(target)

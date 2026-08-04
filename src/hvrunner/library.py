@@ -93,10 +93,14 @@ def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str]) 
         except OSError:
             continue
         for folder in folders:
+            # A declared entry claiming this folder has already been emitted.
+            if str(folder) in seen:
+                continue
             executable = select_executable(folder)
             if executable is None or str(executable) in seen:
                 continue
             seen.add(str(executable))
+            seen.add(str(folder))
             games.append(
                 Game(
                     display_name(folder),
@@ -109,22 +113,39 @@ def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str]) 
     return games
 
 
+def entry_install_dir(entry: dict[str, Any], executable: Path) -> Path:
+    """Where the entry's prefix lives.
+
+    An installed game's executable sits inside the prefix, so its parent is the
+    wrong answer and the folder has to be stored.
+    """
+    declared = str(entry.get("install_dir") or "").strip()
+    return Path(declared).expanduser() if declared else executable.parent
+
+
 def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str]) -> list[Game]:
     games: list[Game] = []
     for entry in config["custom_games"]:
         if not isinstance(entry, dict):
             continue
         executable = Path(str(entry.get("executable", ""))).expanduser()
-        if not executable.is_file() or str(executable) in seen:
+        if not executable.is_file():
+            continue
+        install_dir = entry_install_dir(entry, executable)
+        # Two keys: the folder, so a declared entry replaces the scanned row even
+        # after its executable is changed, and the executable, so two entries
+        # cannot own one binary.
+        if str(executable) in seen or str(install_dir) in seen:
             continue
         seen.add(str(executable))
+        seen.add(str(install_dir))
         raw_args = entry.get("launch_args", [])
         arguments = tuple(str(arg) for arg in raw_args if isinstance(arg, str)) if isinstance(raw_args, list) else ()
         games.append(
             Game(
-                str(entry.get("name") or display_name(executable.parent)),
+                str(entry.get("name") or display_name(install_dir)),
                 CUSTOM_SOURCE,
-                str(executable.parent),
+                str(install_dir),
                 str(executable),
                 launch_args=arguments,
                 favorite=favorite_key(executable) in favorites,
@@ -134,8 +155,10 @@ def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str])
 
 
 def custom_games(config: dict[str, Any], favorites: set[str]) -> list[Game]:
+    # Declared first: they exist to override what the scan would otherwise find.
     seen: set[str] = set()
-    return _scanned_games(config, favorites, seen) + _declared_games(config, favorites, seen)
+    declared = _declared_games(config, favorites, seen)
+    return declared + _scanned_games(config, favorites, seen)
 
 
 def library(config: dict[str, Any]) -> list[Game]:
