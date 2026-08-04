@@ -39,11 +39,13 @@ pip install -e .
 ## Run
 
 ```bash
-hvrunner                  # library browser
-hvrunner --list           # print discovered games
-hvrunner --launch NAME    # launch the one game matching NAME
-hvrunner --logs           # print the most recent launch log
-hvrunner --init-config    # write the default configuration
+hvrunner                          # library browser
+hvrunner --list                   # print discovered games
+hvrunner --launch NAME            # launch the one game matching NAME
+hvrunner --logs                   # print the most recent launch log
+hvrunner --init-config            # write the default configuration
+hvrunner --install PATH           # run a Windows installer into a new game folder
+hvrunner --install PATH --name NAME   # name the game created by --install
 ```
 
 For a one-launch Black Flag DLSS and frame-generation indicator check:
@@ -97,7 +99,7 @@ change made in the interface.
 | `enable_wayland` | `false` | set `PROTON_ENABLE_WAYLAND`, bypassing XWayland |
 | `extra_env` | `{}` | extra environment, applied last |
 | `favorites` | `[]` | favourite keys, managed by the interface |
-| `custom_games` | `[]` | executables added by hand |
+| `custom_games` | `[]` | executables added, installed or edited by hand, each with an optional `install_dir` naming where its Proton prefix lives |
 
 A wrong type is rejected with a message naming the key, rather than failing
 somewhere distant.

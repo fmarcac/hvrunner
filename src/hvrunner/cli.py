@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
+from pathlib import Path
+from typing import Any
 
+from . import entries, installer
 from .affinity import supervise
-from .config import load_config, save_config
+from .config import expand, load_config, save_config
 from .constants import APP_NAME, config_path
 from .launcher import launch, reap_children_automatically
 from .library import library
@@ -22,6 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--init-config", action="store_true", help="write default configuration if it is absent")
     parser.add_argument("--logs", action="store_true", help="print the most recent launch log and exit")
     parser.add_argument("--affinity-watch", nargs=2, metavar=("EXE", "DIR"), help=argparse.SUPPRESS)
+    parser.add_argument("--install", metavar="PATH", help="run a Windows installer into a new game folder")
+    parser.add_argument("--name", metavar="NAME", help="name for the game created by --install")
     return parser
 
 
@@ -35,6 +41,38 @@ def _print_latest_log() -> int:
     print(f"# {logs[0]}")
     for line in reader.lines:
         print(line)
+    return 0
+
+
+def _install(config: dict[str, Any], source_text: str, name: str | None) -> int:
+    """Install headlessly, taking the top ranked binary rather than asking."""
+    source = Path(expand(source_text))
+    if not source.is_file() or source.suffix.lower() != ".exe":
+        raise HvrunnerError(f"no readable .exe at {source}")
+    roots = [Path(expand(str(root))) for root in config["library_roots"]]
+    if not roots:
+        raise HvrunnerError("no library folder is configured")
+    chosen_name = name or source.stem
+    target = installer.prepare_target(roots[0], chosen_name)
+    run = installer.start(source, target, config)
+    print(f"Installing {chosen_name}")
+    print(f"Log: {run.log_path}")
+    while installer.running(run):
+        time.sleep(1.0)
+    candidates = installer.discover(run.prefix, chosen_name)
+    if not candidates:
+        raise HvrunnerError(f"{chosen_name} installed, but no executable was found in {run.prefix}")
+    entries.add(
+        config,
+        {
+            "name": chosen_name,
+            "executable": str(candidates[0]),
+            "install_dir": str(target),
+            "launch_args": [],
+        },
+    )
+    save_config(config_path(), config)
+    print(f"Added {chosen_name} -> {candidates[0]}")
     return 0
 
 
@@ -56,6 +94,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.logs:
             return _print_latest_log()
+        if args.install:
+            return _install(config, args.install, args.name)
         games = library(config)
         if args.launch:
             query = args.launch.casefold()
