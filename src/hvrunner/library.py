@@ -87,7 +87,7 @@ def select_executable(folder: Path) -> Path | None:
     return rank_executables(playable, folder, normalise(folder.name))[0]
 
 
-def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str]) -> list[Game]:
+def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str], claimed: set[str]) -> list[Game]:
     games: list[Game] = []
     for root_text in config["library_roots"]:
         root = Path(str(root_text)).expanduser()
@@ -99,13 +99,13 @@ def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str]) 
             continue
         for folder in folders:
             # A declared entry claiming this folder has already been emitted.
-            if str(folder) in seen:
+            if str(folder) in claimed:
                 continue
             executable = select_executable(folder)
             if executable is None or str(executable) in seen:
                 continue
             seen.add(str(executable))
-            seen.add(str(folder))
+            claimed.add(str(folder))
             games.append(
                 Game(
                     display_name(folder),
@@ -128,7 +128,7 @@ def entry_install_dir(entry: dict[str, Any], executable: Path) -> Path:
     return Path(declared).expanduser() if declared else executable.parent
 
 
-def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str]) -> list[Game]:
+def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str], claimed: set[str]) -> list[Game]:
     games: list[Game] = []
     for entry in config["custom_games"]:
         if not isinstance(entry, dict):
@@ -137,13 +137,14 @@ def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str])
         if not executable.is_file():
             continue
         install_dir = entry_install_dir(entry, executable)
-        # Two keys: the folder, so a declared entry replaces the scanned row even
-        # after its executable is changed, and the executable, so two entries
-        # cannot own one binary.
-        if str(executable) in seen or str(install_dir) in seen:
+        # The executable is the only thing that makes two declared entries
+        # distinct, so it is the only dedupe key here: one folder legitimately
+        # holds a game and its mod loader. Claiming the folder is a separate
+        # matter, and only the scan consults it.
+        if str(executable) in seen:
             continue
         seen.add(str(executable))
-        seen.add(str(install_dir))
+        claimed.add(str(install_dir))
         raw_args = entry.get("launch_args", [])
         arguments = tuple(str(arg) for arg in raw_args if isinstance(arg, str)) if isinstance(raw_args, list) else ()
         games.append(
@@ -162,8 +163,9 @@ def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str])
 def custom_games(config: dict[str, Any], favorites: set[str]) -> list[Game]:
     # Declared first: they exist to override what the scan would otherwise find.
     seen: set[str] = set()
-    declared = _declared_games(config, favorites, seen)
-    return declared + _scanned_games(config, favorites, seen)
+    claimed: set[str] = set()
+    declared = _declared_games(config, favorites, seen, claimed)
+    return declared + _scanned_games(config, favorites, seen, claimed)
 
 
 def library(config: dict[str, Any]) -> list[Game]:

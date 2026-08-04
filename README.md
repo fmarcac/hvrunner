@@ -61,7 +61,9 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 | `enter` | launch the selected game |
 | `j` / `k` | move down and up |
 | `f` | toggle favourite, favourites sort first |
+| `e` | edit, rename or delete the selected game |
 | `a` | add an executable by path |
+| `i` | install from a Windows installer |
 | `r` | rescan library folders |
 | `l` | open the log feed |
 | `s` | settings |

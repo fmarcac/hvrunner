@@ -70,14 +70,16 @@ class EntryScreen(Screen):
                 break
             self.paint.text(area.top + 5 + offset, area.left, line, area.width, "label")
 
-    def _delete(self) -> None:
+    def _delete(self) -> bool:
+        """True when the entry went away, which is when the screen should close."""
         if not self.stored:
             self.app.status = "Nothing to delete: this game comes from the folder scan"
-            return
+            return False
         remove(self.app.config, self.original_executable)
         self.app.save()
         self.app.rescan()
         self.app.status = f"Removed {self.game.name}"
+        return True
 
     def _commit(self) -> None:
         if not self.dirty:
@@ -98,6 +100,7 @@ class EntryScreen(Screen):
         elif keys.is_confirm(key):
             self.fields[self.cursor].activate()
         elif key == ord("d"):
-            self._delete()
-            return False
+            # Staying put on a refusal keeps any pending edits, and puts the
+            # explanation on the screen the user is actually looking at.
+            return not self._delete()
         return True

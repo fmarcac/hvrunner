@@ -183,6 +183,20 @@ def test_install_dir_defaults_to_the_executable_parent(tmp_path, config):
     assert custom_games(config, set())[0].install_dir == str(exe.parent)
 
 
+def test_two_declared_entries_can_share_a_folder(tmp_path, config):
+    """A game and its mod loader live together, and both must stay visible."""
+    folder = tmp_path / "Skyrim"
+    folder.mkdir()
+    (folder / "Skyrim.exe").write_text("x")
+    (folder / "skse64_loader.exe").write_text("x")
+    config["library_roots"] = []
+    config["custom_games"] = [
+        {"name": "Skyrim", "executable": str(folder / "Skyrim.exe")},
+        {"name": "Skyrim SKSE", "executable": str(folder / "skse64_loader.exe")},
+    ]
+    assert [game.name for game in custom_games(config, set())] == ["Skyrim", "Skyrim SKSE"]
+
+
 def test_install_dir_is_used_when_given(tmp_path, config):
     """An installed game lives inside its own prefix, so the folder must be explicit."""
     target = tmp_path / "Witcher3"

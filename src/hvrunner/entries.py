@@ -6,6 +6,7 @@ caller owns. That is what makes the favourite migration testable.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .models import Game, favorite_key
@@ -22,8 +23,15 @@ def draft(game: Game) -> dict[str, Any]:
 
 
 def find(config: dict[str, Any], executable: str) -> dict[str, Any] | None:
+    """Match on the expanded path.
+
+    library expands an entry before it reaches Game.executable, but load_config
+    leaves custom_games exactly as written, so a hand written "~/games/x.exe"
+    would never match the game built from it.
+    """
+    wanted = Path(str(executable)).expanduser()
     for entry in config["custom_games"]:
-        if isinstance(entry, dict) and str(entry.get("executable", "")) == str(executable):
+        if isinstance(entry, dict) and Path(str(entry.get("executable", ""))).expanduser() == wanted:
             return entry
     return None
 

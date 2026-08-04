@@ -9,7 +9,7 @@ from ..widgets import Rect
 from . import preview
 from .base import Screen
 
-KEYS = "enter run   e edit   a add   i install   l logs   s settings   f favourite   ? keys   q quit"
+KEYS = "enter run   e edit   a add   i install   r rescan   l logs   s settings   f favourite   ? keys   q quit"
 
 
 class LibraryScreen(Screen):
