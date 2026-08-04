@@ -9,7 +9,7 @@ from ..widgets import Rect
 from . import preview
 from .base import Screen
 
-KEYS = "enter run   l logs   s settings   f favourite   a add   r rescan   ? keys   q quit"
+KEYS = "enter run   e edit   a add   i install   l logs   s settings   f favourite   ? keys   q quit"
 
 
 class LibraryScreen(Screen):
@@ -46,6 +46,7 @@ class LibraryScreen(Screen):
         self.paint.text(area.top, area.left, "No games yet.", area.width, "text", bold=True)
         self.paint.text(area.top + 2, area.left, "s  add a library folder", area.width, "label")
         self.paint.text(area.top + 3, area.left, "a  add a single executable", area.width, "label")
+        self.paint.text(area.top + 4, area.left, "i  run a Windows installer", area.width, "label")
 
     def handle(self, key: int) -> bool:
         app = self.app
@@ -64,6 +65,10 @@ class LibraryScreen(Screen):
             app.status = "1 title" if len(app.games) == 1 else f"{len(app.games)} titles"
         elif key == ord("a"):
             app.add_executable()
+        elif key == ord("e"):
+            app.edit_entry()
+        elif key == ord("i"):
+            app.install_game()
         elif key == ord("l"):
             app.open_logs()
         elif key == ord("s"):
