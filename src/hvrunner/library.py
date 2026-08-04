@@ -54,8 +54,28 @@ def executable_candidates(folder: Path, max_depth: int = EXE_SEARCH_DEPTH) -> li
     return found
 
 
-def _normalise(text: str) -> str:
+def normalise(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", text.casefold())
+
+
+def rank_executables(executables: list[Path], base: Path, token: str) -> list[Path]:
+    """Shallower, then name affinity, then alphabetical.
+
+    File size is deliberately not a tiebreak: it would quietly prefer a larger
+    sibling such as a _Plus.exe variant over the binary already in use.
+    """
+
+    def rank(path: Path) -> tuple[int, int, str]:
+        stem = normalise(path.stem)
+        if stem == token:
+            name_score = 0
+        elif token and (stem in token or token in stem):
+            name_score = 1
+        else:
+            name_score = 2
+        return (len(path.relative_to(base).parts), name_score, path.name.casefold())
+
+    return sorted(executables, key=rank)
 
 
 def select_executable(folder: Path) -> Path | None:
@@ -64,22 +84,7 @@ def select_executable(folder: Path) -> Path | None:
     if not executables:
         return None
     playable = [path for path in executables if not INSTALLER_PATTERN.search(path.name)] or executables
-    folder_token = _normalise(folder.name)
-
-    def rank(path: Path) -> tuple[int, int, str]:
-        stem = _normalise(path.stem)
-        if stem == folder_token:
-            name_score = 0
-        elif folder_token and (stem in folder_token or folder_token in stem):
-            name_score = 1
-        else:
-            name_score = 2
-        # Shallower, then name affinity, then alphabetical. File size is
-        # deliberately not a tiebreak: it would quietly prefer a larger sibling
-        # such as a _Plus.exe variant over the binary already in use.
-        return (len(path.relative_to(folder).parts), name_score, path.name.casefold())
-
-    return sorted(playable, key=rank)[0]
+    return rank_executables(playable, folder, normalise(folder.name))[0]
 
 
 def _scanned_games(config: dict[str, Any], favorites: set[str], seen: set[str]) -> list[Game]:
