@@ -6,6 +6,7 @@ from .base import Screen
 from .help import HelpScreen
 from .library import LibraryScreen
 from .logs import LogScreen
+from .picker import PickerScreen
 from .settings import SettingsScreen
 
-__all__ = ["HelpScreen", "LibraryScreen", "LogScreen", "Screen", "SettingsScreen"]
+__all__ = ["HelpScreen", "LibraryScreen", "LogScreen", "PickerScreen", "Screen", "SettingsScreen"]
