@@ -10,8 +10,21 @@ def test_favorite_key_matches_game_key():
     assert favorite_key(executable) == game.key
 
 
-def test_key_falls_back_through_appid_then_executable():
-    assert Game("n", "Custom", "/dir", appid="42").key == "Custom:42"
+def test_key_ignores_the_steam_app_id():
+    """Two games sharing an id must not share a favourite key.
+
+    key read appid first once. Had anything ever populated it, every game
+    launched as Spacewar would have collided on "Custom:480" and a favourite
+    would have followed whichever one was scanned first.
+    """
+    one = Game("One", "Custom", "/a", "/a/one.exe", steam_appid="480")
+    two = Game("Two", "Custom", "/b", "/b/two.exe", steam_appid="480")
+    assert one.key == "Custom:/a/one.exe"
+    assert two.key == "Custom:/b/two.exe"
+    assert one.key != two.key
+
+
+def test_key_falls_back_to_the_install_dir():
     assert Game("n", "Custom", "/dir", executable="/dir/g.exe").key == "Custom:/dir/g.exe"
     assert Game("n", "Custom", "/dir").key == "Custom:/dir"
 

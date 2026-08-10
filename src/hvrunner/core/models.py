@@ -14,13 +14,16 @@ class Game:
     source: str
     install_dir: str
     executable: str = ""
-    appid: str = ""
+    # The Steam application id to run under. Launch configuration, never
+    # identity: key must not consult it, or every game sharing an id would
+    # collide on one favourite key.
+    steam_appid: str = ""
     launch_args: tuple[str, ...] = ()
     favorite: bool = False
 
     @property
     def key(self) -> str:
-        return f"{self.source}:{self.appid or self.executable or self.install_dir}"
+        return f"{self.source}:{self.executable or self.install_dir}"
 
     @property
     def slug(self) -> str:
