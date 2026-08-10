@@ -61,6 +61,32 @@ def _edit_path(screen: EntryScreen, key: str, label: str, want: Want) -> Callabl
     return action
 
 
+def clean_steam_appid(value: str) -> str | None:
+    """The id as it should be stored, or None when it is not usable.
+
+    Digits only. umu builds GAMEID as umu-<id> and matches it against
+    ^umu-[\\d\\w]+$, so anything else either fails that check or reaches Steam
+    as nonsense, and in both cases the launch runs as application 0 without
+    saying so.
+    """
+    cleaned = value.strip()
+    return cleaned if cleaned == "" or cleaned.isdigit() else None
+
+
+def _edit_steam_appid(screen: EntryScreen) -> Callable[[], None]:
+    def action() -> None:
+        entered = screen.app.prompt("Steam app id, blank for none", str(screen.entry.get("steam_appid", "")))
+        if entered is None:
+            return
+        cleaned = clean_steam_appid(entered)
+        if cleaned is None:
+            screen.app.status = f"A Steam app id is digits only: {entered}"
+            return
+        screen.set_field("steam_appid", cleaned)
+
+    return action
+
+
 def _edit_args(screen: EntryScreen) -> Callable[[], None]:
     def action() -> None:
         current = " ".join(str(item) for item in screen.entry.get("launch_args", []))
@@ -87,6 +113,14 @@ def build(screen: EntryScreen) -> list[Field]:
             "because the favourite key is built from this path.",
             lambda: str(entry.get("executable", "")),
             _edit_path(screen, "executable", "Path to a Windows executable", Want.EXECUTABLE),
+        ),
+        Field(
+            "Steam app id",
+            "Runs the game under this Steam application id and turns on Proton's "
+            "Steam bridge. 480 is Spacewar, the id used for anything that is not "
+            "a Steam game. Blank runs under no id at all.",
+            lambda: str(entry.get("steam_appid", "")) or "none",
+            _edit_steam_appid(screen),
         ),
         Field(
             "Install folder",
