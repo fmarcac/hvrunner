@@ -97,6 +97,9 @@ def _draw(
 def ask(screen: Any, theme: Theme, label: str, initial: str = "", browsable: bool = False) -> str | Browse | None:
     """Return the entered text, or None when cancelled or there is no room.
 
+    An empty field returns "", not None. The two have to be told apart or a
+    stored value could be set and never cleared.
+
     With browsable set, tab returns Browse instead, and the caller is expected
     to run the file browser and come back.
     """
@@ -146,4 +149,4 @@ def ask(screen: Any, theme: Theme, label: str, initial: str = "", browsable: boo
         curses.curs_set(0)
         del window
         screen.touchwin()
-    return line.text.strip() or None
+    return line.text.strip()

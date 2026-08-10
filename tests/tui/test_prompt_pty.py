@@ -64,3 +64,8 @@ def test_kill_word_removes_one_folder(pty_run):
 
 def test_escape_cancels(pty_run):
     assert pty_run(PROGRAM, [b"/mnt/data", ESCAPE]) == repr(None)
+
+
+def test_an_empty_field_is_not_a_cancel(pty_run):
+    """A stored value cannot be cleared if blank and escape return the same thing."""
+    assert pty_run(PROGRAM, [ENTER]) == repr("")
