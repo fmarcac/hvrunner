@@ -8,14 +8,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import entries, installer
-from .affinity import supervise
-from .config import expand, load_config, save_config
-from .constants import APP_NAME, config_path
-from .launcher import launch, reap_children_automatically
-from .library import library
-from .logs import LogReader, recent_logs
-from .models import HvrunnerError
+from .core import entries, installer
+from .core.affinity import supervise
+from .core.config import expand, load_config, save_config
+from .core.constants import APP_NAME, config_path
+from .core.launcher import launch, reap_children_automatically
+from .core.library import library
+from .core.logs import LogReader, recent_logs
+from .core.models import HvrunnerError
 from .tui import run_tui
 
 

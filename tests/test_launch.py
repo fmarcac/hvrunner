@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner.affinity import all_cpus, watcher_command
-from hvrunner.display import Monitor
-from hvrunner.launcher import alive, drop_to_native_scale, launch
-from hvrunner.models import HvrunnerError
+from hvrunner.core.affinity import all_cpus, watcher_command
+from hvrunner.core.display import Monitor
+from hvrunner.core.launcher import alive, drop_to_native_scale, launch
+from hvrunner.core.models import HvrunnerError
 
 
 def test_launch_failure_raises_hvrunner_error(game_factory, config, state_home, monkeypatch):
     """Popen raises OSError on a missing binary, which the interface would not catch."""
-    import hvrunner.planning as planning
+    import hvrunner.core.planning as planning
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: "/nonexistent/bin/mangohud")
     config["enforce_all_cpus"] = False
@@ -23,7 +23,7 @@ def test_launch_failure_raises_hvrunner_error(game_factory, config, state_home, 
 
 
 def test_launch_writes_a_log(game_factory, config, state_home, monkeypatch):
-    import hvrunner.planning as planning
+    import hvrunner.core.planning as planning
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: "/bin/true" if name == "mangohud" else None)
     config["enforce_all_cpus"] = False
@@ -36,7 +36,7 @@ def test_launch_writes_a_log(game_factory, config, state_home, monkeypatch):
 
 
 def test_native_scale_off_changes_nothing(config, monkeypatch):
-    import hvrunner.launcher as launcher
+    import hvrunner.core.launcher as launcher
 
     applied: list[str] = []
     monkeypatch.setattr(launcher.display, "available", lambda: True)
@@ -46,7 +46,7 @@ def test_native_scale_off_changes_nothing(config, monkeypatch):
 
 
 def test_native_scale_drops_and_reports_the_restore_spec(config, monkeypatch):
-    import hvrunner.launcher as launcher
+    import hvrunner.core.launcher as launcher
 
     config["native_scale"] = True
     monitor = Monitor("DP-3", 2560, 1440, 200.013, 0, 0, 1.25)
@@ -61,7 +61,7 @@ def test_native_scale_drops_and_reports_the_restore_spec(config, monkeypatch):
 
 
 def test_native_scale_skips_an_unscaled_output(config, monkeypatch):
-    import hvrunner.launcher as launcher
+    import hvrunner.core.launcher as launcher
 
     config["native_scale"] = True
     monkeypatch.setattr(launcher.display, "available", lambda: True)
@@ -71,7 +71,7 @@ def test_native_scale_skips_an_unscaled_output(config, monkeypatch):
 
 
 def test_native_scale_without_hyprctl(config, monkeypatch):
-    import hvrunner.launcher as launcher
+    import hvrunner.core.launcher as launcher
 
     config["native_scale"] = True
     monkeypatch.setattr(launcher.display, "available", lambda: False)
@@ -80,7 +80,7 @@ def test_native_scale_without_hyprctl(config, monkeypatch):
 
 def test_native_scale_reports_nothing_when_apply_fails(config, monkeypatch):
     """A failed change must not leave a restore spec claiming one happened."""
-    import hvrunner.launcher as launcher
+    import hvrunner.core.launcher as launcher
 
     config["native_scale"] = True
     monkeypatch.setattr(launcher.display, "available", lambda: True)
@@ -119,9 +119,9 @@ def test_launch_runs_in_the_executables_own_folder(config, state_home, stub_tool
     Hitman ships ".../Hitman-Absolution-AnkerGames/Hitman Absolution/HMA.exe",
     so cwd and install_dir are not the same directory.
     """
-    import hvrunner.launcher as launcher
-    from hvrunner.constants import CUSTOM_SOURCE
-    from hvrunner.models import Game
+    import hvrunner.core.launcher as launcher
+    from hvrunner.core.constants import CUSTOM_SOURCE
+    from hvrunner.core.models import Game
 
     recorded: dict = {}
 
@@ -148,6 +148,6 @@ def test_launch_runs_in_the_executables_own_folder(config, state_home, stub_tool
 
 
 def test_working_directory_is_the_binarys_parent():
-    from hvrunner.launcher import working_directory
+    from hvrunner.core.launcher import working_directory
 
     assert working_directory("/games/Title/Sub/Game.exe") == "/games/Title/Sub"

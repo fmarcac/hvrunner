@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ...entries import draft, find, remove, update
-from ...models import Game
+from ...core.entries import draft, find, remove, update
+from ...core.models import Game
 from .. import keys, layout
 from ..text import fit, letterspace, shorten_path, wrap
 from ..widgets import Rect

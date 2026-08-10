@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...constants import APP_NAME
+from ...core.constants import APP_NAME
 from .. import keys, layout
 from ..text import letterspace
 from ..widgets import Rect

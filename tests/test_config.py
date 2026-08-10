@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from hvrunner.config import default_config, expand, load_config, save_config, unknown_keys
-from hvrunner.models import HvrunnerError
+from hvrunner.core.config import default_config, expand, load_config, save_config, unknown_keys
+from hvrunner.core.models import HvrunnerError
 
 
 def test_missing_file_yields_defaults(tmp_path):

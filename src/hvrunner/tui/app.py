@@ -12,13 +12,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .. import browsing, entries, installer
-from ..browsing import Want
-from ..config import expand, save_config, unknown_keys
-from ..constants import LAUNCH_SETTLE_SECONDS
-from ..launcher import alive, launch
-from ..library import display_name, library
-from ..models import Game, HvrunnerError
+from ..core import browsing, entries, installer
+from ..core.browsing import Want
+from ..core.config import expand, save_config, unknown_keys
+from ..core.constants import LAUNCH_SETTLE_SECONDS
+from ..core.launcher import alive, launch
+from ..core.library import display_name, library
+from ..core.models import Game, HvrunnerError
 from . import prompt as prompt_module
 from .screens import (
     BrowseScreen,

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner.models import Game, HvrunnerError
-from hvrunner.planning import build_command, plan
+from hvrunner.core.models import Game, HvrunnerError
+from hvrunner.core.planning import build_command, plan
 
 
 def test_gamemode_wraps_the_command(game_factory, config, stub_tools):
@@ -66,7 +66,7 @@ def test_missing_executable_is_reported(config, stub_tools, tmp_path):
 
 def test_a_missing_wrapper_does_not_stop_a_launch(game_factory, config, monkeypatch):
     """Requiring MangoHud made hvrunner unusable on a machine without it."""
-    import hvrunner.planning as planning
+    import hvrunner.core.planning as planning
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: None)
     command, _ = build_command(game_factory("Plain.exe"), config)

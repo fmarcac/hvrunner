@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hvrunner import entries
-from hvrunner.models import favorite_key
+from hvrunner.core import entries
+from hvrunner.core.models import favorite_key
 
 
 def test_draft_describes_a_scanned_game(game_factory):

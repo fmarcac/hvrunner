@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hvrunner.library import custom_games, display_name, executable_candidates, library, select_executable
+from hvrunner.core.library import custom_games, display_name, executable_candidates, library, select_executable
 
 
 def test_display_name_preserves_internal_capitals():

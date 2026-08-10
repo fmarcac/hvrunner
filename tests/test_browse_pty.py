@@ -20,8 +20,8 @@ PROGRAM = """
 import curses, os, sys
 from pathlib import Path
 sys.path.insert(0, os.environ["PTY_SRC"])
-from hvrunner.browsing import Want
-from hvrunner.config import default_config
+from hvrunner.core.browsing import Want
+from hvrunner.core.config import default_config
 from hvrunner.tui.app import App
 
 def main(screen):

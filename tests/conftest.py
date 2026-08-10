@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from hvrunner.config import default_config  # noqa: E402
+from hvrunner.core.config import default_config  # noqa: E402
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def config(fake_proton, fake_umu, tmp_path):
 @pytest.fixture
 def stub_tools(monkeypatch):
     """Make MangoHud and gamemode lookups deterministic."""
-    import hvrunner.planning as planning
+    import hvrunner.core.planning as planning
 
     def which(name):
         return f"/usr/bin/{name}" if name in {"mangohud", "gamemoderun"} else None
@@ -71,8 +71,8 @@ def game_factory(tmp_path):
     """Build a game folder with an executable of a given name."""
 
     def make(name: str = "ACBlackFlag.exe", folder: str = "G"):
-        from hvrunner.constants import CUSTOM_SOURCE
-        from hvrunner.models import Game
+        from hvrunner.core.constants import CUSTOM_SOURCE
+        from hvrunner.core.models import Game
 
         directory = tmp_path / folder
         directory.mkdir(parents=True, exist_ok=True)

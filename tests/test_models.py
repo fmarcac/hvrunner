@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from hvrunner.constants import CUSTOM_SOURCE
-from hvrunner.models import Game, favorite_key
+from hvrunner.core.constants import CUSTOM_SOURCE
+from hvrunner.core.models import Game, favorite_key
 
 
 def test_favorite_key_matches_game_key():

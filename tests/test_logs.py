@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from hvrunner.constants import log_dir
-from hvrunner.logs import LogReader, classify, clean_line, new_log_path, prune_logs, recent_logs
-from hvrunner.models import Game
+from hvrunner.core.constants import log_dir
+from hvrunner.core.logs import LogReader, classify, clean_line, new_log_path, prune_logs, recent_logs
+from hvrunner.core.models import Game
 
 
 def make_game(name="Black Flag"):

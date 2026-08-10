@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .models import Game, HvrunnerError, favorite_key
+from .core.models import Game, HvrunnerError, favorite_key
 
 __all__ = ["Game", "HvrunnerError", "favorite_key", "__version__"]
 

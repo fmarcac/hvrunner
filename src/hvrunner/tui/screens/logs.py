@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...logs import LogReader, classify, recent_logs
+from ...core.logs import LogReader, classify, recent_logs
 from .. import keys
 from ..text import fit
 from ..widgets import Rect

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner.constants import DEFAULT_MANGOHUD_CONFIG, DEFAULT_WINEDEBUG
-from hvrunner.planning import build_command
+from hvrunner.core.constants import DEFAULT_MANGOHUD_CONFIG, DEFAULT_WINEDEBUG
+from hvrunner.core.planning import build_command
 
 
 def test_wine_errors_are_not_suppressed():

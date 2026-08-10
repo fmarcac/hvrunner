@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...browsing import Want, human_size, listing
+from ...core.browsing import Want, human_size, listing
 from .. import keys, layout
 from ..text import fit, letterspace, shorten_path
 from ..widgets import Rect

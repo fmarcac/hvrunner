@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...environment import WINDOWS_SIDE_ENV
-from ...models import Game, HvrunnerError
-from ...planning import plan
+from ...core.environment import WINDOWS_SIDE_ENV
+from ...core.models import Game, HvrunnerError
+from ...core.planning import plan
 from ..text import fit
 from ..widgets import Painter, Rect
 

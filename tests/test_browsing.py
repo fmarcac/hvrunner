@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner.browsing import PARENT_NAME, Want, human_size, listing, start_directory
+from hvrunner.core.browsing import PARENT_NAME, Want, human_size, listing, start_directory
 
 
 @pytest.fixture

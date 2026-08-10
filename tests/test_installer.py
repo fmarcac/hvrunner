@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner import installer
-from hvrunner.models import HvrunnerError
+from hvrunner.core import installer
+from hvrunner.core.models import HvrunnerError
 
 
 def test_prepare_target_creates_the_folder(tmp_path):

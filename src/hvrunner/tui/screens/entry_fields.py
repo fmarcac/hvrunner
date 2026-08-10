@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ...browsing import Want
-from ...config import expand
+from ...core.browsing import Want
+from ...core.config import expand
 
 if TYPE_CHECKING:
     from .entry import EntryScreen
