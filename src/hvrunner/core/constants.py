@@ -18,6 +18,11 @@ DEFAULT_CUSTOM_ROOT = Path("/mnt/data/games")
 # stop matching after a rescan.
 CUSTOM_SOURCE = "Custom"
 
+# Spacewar, the Steam application anything that is not a Steam game is
+# conventionally run as. It gives a game a real SteamAppId without pretending
+# to be a title the user does not own.
+SPACEWAR_APPID = "480"
+
 # Empty on purpose, so MANGOHUD_CONFIG is left unset.
 #
 # MANGOHUD_CONFIG in the environment REPLACES ~/.config/MangoHud/MangoHud.conf,

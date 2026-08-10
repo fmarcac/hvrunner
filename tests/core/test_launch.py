@@ -151,3 +151,32 @@ def test_working_directory_is_the_binarys_parent():
     from hvrunner.core.launcher import working_directory
 
     assert working_directory("/games/Title/Sub/Game.exe") == "/games/Title/Sub"
+
+
+def test_spacewar_launch_overrides_a_stored_id(config, state_home, stub_tools, monkeypatch, tmp_path):
+    """S is a one off: it ignores whatever the entry stores."""
+    from dataclasses import replace
+
+    import hvrunner.core.launcher as launcher
+    from hvrunner.core.constants import CUSTOM_SOURCE, SPACEWAR_APPID
+    from hvrunner.core.models import Game
+
+    recorded: dict = {}
+
+    class FakePopen:
+        def __init__(self, command, **kwargs):
+            recorded.update(kwargs)
+            self.pid = 4242
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", FakePopen)
+    config["enforce_all_cpus"] = False
+
+    folder = tmp_path / "Game"
+    folder.mkdir()
+    executable = folder / "Game.exe"
+    executable.write_text("stub")
+    stored = Game("Game", CUSTOM_SOURCE, str(folder), str(executable), steam_appid="1234")
+
+    launch(replace(stored, steam_appid=SPACEWAR_APPID), config)
+    assert recorded["env"]["GAMEID"] == "umu-480"
+    assert recorded["env"]["PROTON_DISABLE_LSTEAMCLIENT"] == "0"

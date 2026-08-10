@@ -59,6 +59,7 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 | Key | Action |
 | --- | --- |
 | `enter` | launch the selected game |
+| `S` | launch the selected game as Spacewar, Steam app id 480 |
 | `j` / `k` | move down and up |
 | `f` | toggle favourite, favourites sort first |
 | `e` | edit, rename or delete the selected game |
@@ -72,6 +73,14 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 
 In the log feed: `j`/`k` scroll, `PgUp`/`PgDn` by a screen, `g`/`G` jump to the
 ends, `f` toggles following new output, `n`/`p` switch between logs.
+
+`S` runs the game under Steam application id 480, Spacewar, and turns on
+Proton's `lsteamclient` bridge, which this Proton build disables by default. It
+is what a game expecting a real `SteamAppId` wants. It does not give you the
+Steam overlay or Steam Input: both need the game launched by Steam itself, as a
+non-Steam shortcut. A game shipping its own Steam emulator keeps using that
+instead. To make it stick for one game, set its Steam app id in the entry
+editor with `e`; `S` stays a one off that ignores whatever is stored.
 
 Anywhere a path is asked for, the field takes a value of any length and scrolls
 sideways: arrow keys and `^a`/`^e` move, `^w` rubs out one folder, `^u` clears.

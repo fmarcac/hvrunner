@@ -9,7 +9,7 @@ from ..widgets import Rect
 from . import preview
 from .base import Screen
 
-KEYS = "enter run   e edit   a add   i install   r rescan   l logs   s settings   f favourite   ? keys   q quit"
+KEYS = "enter run   S spacewar   e edit   a add   i install   r rescan   l logs   s settings   f favourite   ? keys   q quit"
 
 
 class LibraryScreen(Screen):
@@ -65,6 +65,8 @@ class LibraryScreen(Screen):
             app.move(-1)
         elif keys.is_confirm(key):
             app.run_game()
+        elif key == ord("S"):
+            app.run_game(as_spacewar=True)
         elif key == ord("f"):
             app.toggle_favourite()
         elif key == ord("r"):

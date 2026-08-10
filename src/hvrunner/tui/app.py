@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import curses
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from ..core import entries, installer
 from ..core.browsing import Want
 from ..core.config import expand, save_config, unknown_keys
-from ..core.constants import LAUNCH_SETTLE_SECONDS
+from ..core.constants import LAUNCH_SETTLE_SECONDS, SPACEWAR_APPID
 from ..core.launcher import alive, launch
 from ..core.library import display_name, library
 from ..core.models import Game, HvrunnerError
@@ -93,10 +93,14 @@ class App:
 
     # ---- actions ------------------------------------------------------------
 
-    def run_game(self) -> None:
+    def run_game(self, *, as_spacewar: bool = False) -> None:
         game = self.current
         if not game:
             return
+        if as_spacewar:
+            # A one off. The replace never reaches the config, so a game that
+            # always needs an id gets one from the entry editor instead.
+            game = replace(game, steam_appid=SPACEWAR_APPID)
         try:
             result = launch(game, self.config)
         except HvrunnerError as error:
