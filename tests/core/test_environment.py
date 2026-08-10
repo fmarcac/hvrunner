@@ -120,3 +120,27 @@ def test_shader_cache_can_be_disabled(game_factory, config, stub_tools):
     _, env = build_command(game_factory("Plain.exe"), config)
     assert "VKD3D_SHADER_CACHE_PATH" not in env
     assert "DXVK_STATE_CACHE_PATH" not in env
+
+
+def test_game_id_needs_the_umu_prefix():
+    """umu only reads an id out of a GAMEID matching ^umu-[\\d\\w]+$."""
+    from hvrunner.core.environment import game_id
+
+    assert game_id("480") == "umu-480"
+    assert game_id("") == "0"
+
+
+def test_no_app_id_leaves_the_proton_default_alone(game_factory, config, stub_tools):
+    _, env = build_command(game_factory("Plain.exe"), config)
+    assert env["GAMEID"] == "0"
+    assert "PROTON_DISABLE_LSTEAMCLIENT" not in env
+
+
+def test_an_app_id_sets_gameid_and_enables_the_bridge(game_factory, config, stub_tools):
+    """This Proton build disables lsteamclient itself unless the name is set."""
+    from dataclasses import replace
+
+    game = replace(game_factory("Plain.exe"), steam_appid="480")
+    _, env = build_command(game, config)
+    assert env["GAMEID"] == "umu-480"
+    assert env["PROTON_DISABLE_LSTEAMCLIENT"] == "0"

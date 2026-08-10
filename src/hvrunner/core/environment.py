@@ -14,6 +14,8 @@ from .models import Game, HvrunnerError
 NOTABLE_ENV = (
     "PROTONPATH",
     "WINEPREFIX",
+    "GAMEID",
+    "PROTON_DISABLE_LSTEAMCLIENT",
     "VKD3D_SHADER_CACHE_PATH",
     "MANGOHUD_CONFIG",
     "PROTON_ENABLE_WAYLAND",
@@ -97,11 +99,20 @@ def _overlay(environment: dict[str, str], config: dict[str, Any]) -> None:
             environment[str(name)] = str(value)
 
 
+def game_id(steam_appid: str) -> str:
+    """umu only reads an application id out of a GAMEID shaped umu-<id>.
+
+    A bare "480" does not match its ^umu-[\\d\\w]+$ check, so the launch would
+    quietly run as application 0 instead.
+    """
+    return f"umu-{steam_appid}" if steam_appid else "0"
+
+
 def build(game: Game, config: dict[str, Any], proton: Path, prefix: Path, *, prepare: bool) -> dict[str, str]:
     environment = os.environ.copy()
     environment.update(
         {
-            "GAMEID": "0",
+            "GAMEID": game_id(game.steam_appid),
             "PROTONPATH": str(proton),
             "WINEPREFIX": str(prefix),
             "WINEDEBUG": DEFAULT_WINEDEBUG,
@@ -109,6 +120,13 @@ def build(game: Game, config: dict[str, Any], proton: Path, prefix: Path, *, pre
             "DISABLE_GAMESCOPE_WSI": "1",
         }
     )
+
+    if game.steam_appid:
+        # Proton-GE disables the bridge itself unless this name is already in
+        # the environment, whatever its value. Running under an application id
+        # means presenting as a Steam game, and this is the half of that which
+        # reaches the Steam client.
+        environment["PROTON_DISABLE_LSTEAMCLIENT"] = "0"
 
     if config.get("shader_cache", True):
         cache = prefix / "shadercache"

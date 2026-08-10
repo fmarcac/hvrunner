@@ -137,5 +137,7 @@ def test_notable_environment_is_ordered_and_filtered(game_factory, config, stub_
     assert names[0] == "PROTONPATH"
     assert "DXVK_ENABLE_NVAPI" in names
     assert "VKD3D_SHADER_CACHE_PATH" in names
-    # GAMEID is set but is not worth showing.
-    assert "GAMEID" not in names
+    # GAMEID used to be hidden here as uninteresting. It decides which Steam
+    # application the game runs as, so the pane that answers "what will
+    # actually run" has to show it.
+    assert "GAMEID" in names
