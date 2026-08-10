@@ -39,3 +39,6 @@ docstring-code-format = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 cache_dir = ".cache/pytest"
+# Excluded from bin/check: each one drives a real pty and waits seconds on it.
+# Run them with: pytest -m integration
+markers = ["integration: drives a real terminal through a pty"]

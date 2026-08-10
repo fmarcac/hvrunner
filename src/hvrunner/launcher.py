@@ -24,6 +24,28 @@ class LaunchResult:
     log_path: Path
 
 
+def alive(pid: int) -> bool:
+    """True while a launched process still exists.
+
+    Popen.poll and Popen.wait cannot answer this: cli.main sets SIGCHLD to
+    SIG_IGN so the kernel reaps children itself, after which wait raises
+    ChildProcessError and poll never reports a status. One definition, because
+    the installer asks the same question.
+    """
+    return Path(f"/proc/{pid}").exists()
+
+
+def working_directory(executable: str) -> str:
+    """Where a game starts: the folder its binary is in.
+
+    Not install_dir. A scanned game's executable can sit a level below the game
+    folder, as Hitman's does in "Hitman Absolution/HMA.exe", and a game that
+    opens data files relative to the working directory would not find them.
+    install_dir keeps its one meaning, which is where the Proton prefix lives.
+    """
+    return str(Path(executable).parent)
+
+
 def reap_children_automatically() -> None:
     """Let the kernel reap exited children.
 
@@ -93,7 +115,7 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
         # drawing on, which is what stops the interleaved output.
         process = subprocess.Popen(
             prepared.command,
-            cwd=game.install_dir,
+            cwd=working_directory(game.executable),
             env=prepared.environment,
             stdin=subprocess.DEVNULL,
             stdout=handle,

@@ -41,6 +41,23 @@ def prefix_path(game: Game, config: dict[str, Any]) -> Path:
     return Path(game.install_dir) / str(config["custom_prefix_name"])
 
 
+def wrappers(config: dict[str, Any]) -> list[str]:
+    """The commands umu is wrapped in, outermost first.
+
+    Neither is required. A binary that is enabled but not installed is an
+    environment fact rather than a misconfiguration, and refusing to launch over
+    it is how a missing MangoHud used to make hvrunner unusable outright.
+    """
+    found: list[str] = []
+    for name, key in (("gamemoderun", "use_gamemode"), ("mangohud", "use_mangohud")):
+        if not config.get(key, True):
+            continue
+        located = shutil.which(name)
+        if located:
+            found.append(located)
+    return found
+
+
 def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> LaunchPlan:
     """Work out exactly what would run.
 
@@ -50,9 +67,6 @@ def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> Launch
     proton = resolve_proton(config)
     umu = require_file(Path(str(config["umu_path"])).expanduser(), "umu")
     executable = require_file(Path(game.executable), "game executable")
-    mangohud = shutil.which("mangohud")
-    if not mangohud:
-        raise HvrunnerError("MangoHud is unavailable")
 
     prefix = prefix_path(game, config)
     prefix_ready = prefix.is_dir()
@@ -64,11 +78,7 @@ def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> Launch
 
     built = environment_module.build(game, config, proton, prefix, prepare=prepare)
 
-    command = [mangohud, str(umu), str(executable), *game.launch_args]
-    if config.get("use_gamemode", True):
-        gamemoderun = shutil.which("gamemoderun")
-        if gamemoderun:
-            command.insert(0, gamemoderun)
+    command = [*wrappers(config), str(umu), str(executable), *game.launch_args]
     return LaunchPlan(command=command, environment=built, prefix=prefix, prefix_ready=prefix_ready)
 
 

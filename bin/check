@@ -49,7 +49,9 @@ else
     skip markdownlint
 fi
 
-run "pytest" "$PYTHON" -m pytest -q
+# The pty tests are opt-in: they spend seconds waiting on a terminal, and CI
+# has no reason to. Run them with: pytest -m integration
+run "pytest" "$PYTHON" -m pytest -q -m "not integration"
 
 if ((${#failed[@]})); then
     printf '\033[31m\nfailed: %s\033[0m\n' "${failed[*]}"

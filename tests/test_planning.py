@@ -64,12 +64,38 @@ def test_missing_executable_is_reported(config, stub_tools, tmp_path):
         build_command(game, config)
 
 
-def test_missing_mangohud_is_reported(game_factory, config, monkeypatch):
+def test_a_missing_wrapper_does_not_stop_a_launch(game_factory, config, monkeypatch):
+    """Requiring MangoHud made hvrunner unusable on a machine without it."""
     import hvrunner.planning as planning
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: None)
-    with pytest.raises(HvrunnerError, match="MangoHud is unavailable"):
-        build_command(game_factory("Plain.exe"), config)
+    command, _ = build_command(game_factory("Plain.exe"), config)
+    assert command[0].endswith("umu-run")
+
+
+def test_mangohud_can_be_disabled(game_factory, config, stub_tools):
+    config["use_mangohud"] = False
+    command, env = build_command(game_factory("Plain.exe"), config)
+    assert not any(part.endswith("mangohud") for part in command)
+    assert command[0].endswith("gamemoderun")
+    assert "MANGOHUD" not in env
+
+
+def test_disabling_mangohud_overrides_an_inherited_setting(game_factory, config, stub_tools, monkeypatch):
+    """The environment is inherited, so leaving MANGOHUD unset is not enough."""
+    monkeypatch.setenv("MANGOHUD", "1")
+    monkeypatch.setenv("MANGOHUD_CONFIG", "fps")
+    config["use_mangohud"] = False
+    _, env = build_command(game_factory("Plain.exe"), config)
+    assert "MANGOHUD" not in env
+    assert "MANGOHUD_CONFIG" not in env
+
+
+def test_both_wrappers_can_be_disabled(game_factory, config, stub_tools):
+    config["use_mangohud"] = False
+    config["use_gamemode"] = False
+    command, _ = build_command(game_factory("Plain.exe"), config)
+    assert command[0].endswith("umu-run")
 
 
 def test_plan_does_not_touch_the_disk(game_factory, config, stub_tools):

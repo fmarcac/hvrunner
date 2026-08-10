@@ -7,7 +7,7 @@ import pytest
 
 from hvrunner.affinity import all_cpus, watcher_command
 from hvrunner.display import Monitor
-from hvrunner.launcher import drop_to_native_scale, launch
+from hvrunner.launcher import alive, drop_to_native_scale, launch
 from hvrunner.models import HvrunnerError
 
 
@@ -89,6 +89,19 @@ def test_native_scale_reports_nothing_when_apply_fails(config, monkeypatch):
     assert drop_to_native_scale(config) is None
 
 
+def test_alive_follows_a_process_that_ends():
+    """SIGCHLD is SIG_IGN, so this cannot go through Popen.poll."""
+    import subprocess
+
+    process = subprocess.Popen(["/bin/sleep", "30"])
+    try:
+        assert alive(process.pid)
+    finally:
+        process.kill()
+        process.wait()
+    assert not alive(process.pid)
+
+
 def test_all_cpus_ignores_the_caller_mask():
     assert all_cpus() == set(range(os.cpu_count() or 1))
 
@@ -98,3 +111,43 @@ def test_watcher_command_targets_a_real_entry_point():
     assert command[-3:] == ["--affinity-watch", "Game.exe", "/games/Game"]
     target = Path(command[0] if command[0].endswith("hvrunner") else command[1])
     assert target.exists()
+
+
+def test_launch_runs_in_the_executables_own_folder(config, state_home, stub_tools, monkeypatch, tmp_path):
+    """A scanned game's binary can sit below the folder the prefix lives in.
+
+    Hitman ships ".../Hitman-Absolution-AnkerGames/Hitman Absolution/HMA.exe",
+    so cwd and install_dir are not the same directory.
+    """
+    import hvrunner.launcher as launcher
+    from hvrunner.constants import CUSTOM_SOURCE
+    from hvrunner.models import Game
+
+    recorded: dict = {}
+
+    class FakePopen:
+        def __init__(self, command, **kwargs):
+            recorded["command"] = command
+            recorded.update(kwargs)
+            self.pid = 4242
+
+    monkeypatch.setattr(launcher.subprocess, "Popen", FakePopen)
+    config["enforce_all_cpus"] = False
+
+    folder = tmp_path / "Game"
+    inner = folder / "Deep"
+    inner.mkdir(parents=True)
+    executable = inner / "Game.exe"
+    executable.write_text("stub")
+
+    launch(Game("Game", CUSTOM_SOURCE, str(folder), str(executable)), config)
+
+    assert recorded["cwd"] == str(inner)
+    # install_dir keeps its own meaning: it is where the prefix lives.
+    assert recorded["env"]["WINEPREFIX"] == str(folder / ".hvrunner-proton")
+
+
+def test_working_directory_is_the_binarys_parent():
+    from hvrunner.launcher import working_directory
+
+    assert working_directory("/games/Title/Sub/Game.exe") == "/games/Title/Sub"

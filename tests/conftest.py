@@ -81,3 +81,64 @@ def game_factory(tmp_path):
         return Game(directory.name, CUSTOM_SOURCE, str(directory), str(executable))
 
     return make
+
+
+@pytest.fixture
+def pty_run(tmp_path):
+    """Run a small curses program under a real pty and return what it produced.
+
+    The prompt and the browser cannot be exercised any other way. The two bugs
+    they shipped with were a window that never had keypad translation enabled
+    and a length cap inside curses.getstr, and neither is visible to a fake
+    screen: both live in what the terminal and ncurses do to the bytes.
+
+    The program is given PTY_SRC to import from and PTY_OUT to write its repr
+    to. Keystrokes arrive as a list of chunks with a pause between them, so a
+    screen has drawn before the next key lands.
+    """
+    import fcntl
+    import os
+    import pty
+    import struct
+    import subprocess
+    import sys
+    import termios
+    import time
+
+    source_root = str(Path(__file__).resolve().parents[1] / "src")
+
+    def run(program: str, chunks: list[bytes], timeout: float = 30.0) -> str:
+        out = tmp_path / "pty-result.txt"
+        primary, secondary = pty.openpty()
+        # A fixed size, so a layout that depends on width cannot make the test
+        # depend on whatever terminal happens to be running it.
+        fcntl.ioctl(secondary, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+        child = subprocess.Popen(
+            [sys.executable, "-c", program],
+            stdin=secondary,
+            stdout=secondary,
+            stderr=secondary,
+            env={
+                **os.environ,
+                "TERM": "xterm-256color",
+                "LANG": "en_US.UTF-8",
+                "PTY_SRC": source_root,
+                "PTY_OUT": str(out),
+            },
+            close_fds=True,
+        )
+        os.close(secondary)
+        try:
+            time.sleep(1.5)  # let curses finish initialising before typing
+            for chunk in chunks:
+                os.write(primary, chunk)
+                time.sleep(0.35)
+            child.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            raise AssertionError("the curses program never exited; a key was probably not consumed") from None
+        finally:
+            os.close(primary)
+        return out.read_text() if out.exists() else ""
+
+    return run

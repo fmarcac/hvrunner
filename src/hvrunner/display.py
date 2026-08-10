@@ -28,6 +28,7 @@ class Monitor:
     x: int
     y: int
     scale: float
+    focused: bool = False
 
     def spec(self, scale: float) -> str:
         """A monitor argument in the form hyprctl keyword expects."""
@@ -63,6 +64,7 @@ def parse_monitors(payload: str) -> list[Monitor]:
                     x=int(entry.get("x", 0)),
                     y=int(entry.get("y", 0)),
                     scale=float(entry.get("scale", 1.0)),
+                    focused=bool(entry.get("focused")),
                 )
             )
         except (KeyError, TypeError, ValueError):
@@ -94,18 +96,16 @@ def monitors() -> list[Monitor]:
 
 
 def focused_monitor() -> Monitor | None:
-    payload = _run(["-j", "monitors"])
-    if not payload:
+    """The focused output, or the first one when nothing claims focus.
+
+    Focus is carried on Monitor rather than dug out of the payload a second
+    time: this used to re-serialise the chosen entry back to JSON only to parse
+    it again.
+    """
+    found = monitors()
+    if not found:
         return None
-    try:
-        entries = json.loads(payload)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    if not isinstance(entries, list):
-        return None
-    chosen = next((e for e in entries if isinstance(e, dict) and e.get("focused")), None)
-    found = parse_monitors(json.dumps([chosen] if chosen else entries))
-    return found[0] if found else None
+    return next((monitor for monitor in found if monitor.focused), found[0])
 
 
 def apply(spec: str) -> bool:

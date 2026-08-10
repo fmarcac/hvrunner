@@ -7,18 +7,39 @@ handling live in the individual screens.
 from __future__ import annotations
 
 import curses
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .. import entries, installer
-from ..config import expand, save_config
-from ..launcher import launch
+from .. import browsing, entries, installer
+from ..browsing import Want
+from ..config import expand, save_config, unknown_keys
+from ..constants import LAUNCH_SETTLE_SECONDS
+from ..launcher import alive, launch
 from ..library import display_name, library
 from ..models import Game, HvrunnerError
 from . import prompt as prompt_module
-from .screens import EntryScreen, HelpScreen, LibraryScreen, LogScreen, PickerScreen, SettingsScreen
+from .screens import (
+    BrowseScreen,
+    EntryScreen,
+    HelpScreen,
+    LibraryScreen,
+    LogScreen,
+    PickerScreen,
+    SettingsScreen,
+)
 from .theme import Theme
 from .widgets import Painter
+
+
+@dataclass(frozen=True)
+class Watch:
+    """A launch whose process is still being followed."""
+
+    name: str
+    pid: int
+    started: float
 
 
 class App:
@@ -31,8 +52,11 @@ class App:
         self.paint = Painter(screen, self.theme)
         self.games = library(config)
         self.selected = 0
-        self.status = ""
+        unknown = unknown_keys(config)
+        # Kept in the file either way, so this is the only sign a key is a typo.
+        self.status = f"Not a setting, kept but ignored: {', '.join(unknown)}" if unknown else ""
         self.active_log: Path | None = None
+        self.watching: Watch | None = None
         curses.curs_set(0)
         self.screen.keypad(True)
 
@@ -62,7 +86,41 @@ class App:
         value = prompt_module.ask(self.screen, self.theme, label, initial)
         if value is None and self.screen.getmaxyx()[1] < prompt_module.MINIMUM_WIDTH:
             self.status = "Terminal is too small for that"
-        return value
+        return str(value) if isinstance(value, str) else None
+
+    def _browse_root(self) -> Path:
+        """Where a browse with nothing typed starts.
+
+        A library folder is the answer nearly every time, so offering the whole
+        filesystem first would just be a directory to walk out of.
+        """
+        for root in self.config["library_roots"]:
+            candidate = Path(expand(str(root)))
+            if candidate.is_dir():
+                return candidate
+        return Path.home()
+
+    def prompt_path(self, label: str, want: Want, initial: str = "") -> str | None:
+        """Ask for a path, with tab opening the browser.
+
+        The prompt cannot open the browser itself: the browser is a screen, and
+        screens do not import one another. Leaving the browser without picking
+        returns to the field with what was typed still there.
+        """
+        typed = initial
+        while True:
+            answer = prompt_module.ask(self.screen, self.theme, label, typed, browsable=True)
+            if answer is None:
+                if self.screen.getmaxyx()[1] < prompt_module.MINIMUM_WIDTH:
+                    self.status = "Terminal is too small for that"
+                return None
+            if isinstance(answer, str):
+                return answer
+            typed = answer.text
+            start = browsing.start_directory(typed, self._browse_root())
+            picked = BrowseScreen(self, start, want).choose()
+            if picked is not None:
+                return str(picked)
 
     # ---- actions ------------------------------------------------------------
 
@@ -76,7 +134,24 @@ class App:
             self.status = str(error)
             return
         self.active_log = result.log_path
-        self.status = f"Running {game.name}, pid {result.pid}. Press l for output."
+        self.watching = Watch(game.name, result.pid, time.monotonic())
+        self.status = f"Started {game.name}, pid {result.pid}. Press l for output."
+
+    def check_launch(self) -> None:
+        """Correct the started message once the process is gone.
+
+        Without this a game that died on startup kept reporting itself as
+        running for as long as the interface stayed open, which is how a failed
+        launch went unnoticed in the first place.
+        """
+        watch = self.watching
+        if watch is None or alive(watch.pid):
+            return
+        self.watching = None
+        if time.monotonic() - watch.started < LAUNCH_SETTLE_SECONDS:
+            self.status = f"{watch.name} exited on startup. Press l for output."
+        else:
+            self.status = f"{watch.name} has exited."
 
     def toggle_favourite(self) -> None:
         game = self.current
@@ -94,7 +169,7 @@ class App:
         self.rescan()
 
     def add_executable(self) -> None:
-        entered = self.prompt("Path to a Windows executable")
+        entered = self.prompt_path("Path to a Windows executable", Want.EXECUTABLE)
         if not entered:
             return
         path = Path(expand(entered))
@@ -121,11 +196,11 @@ class App:
             return None
         if len(roots) == 1:
             return roots[0]
-        entered = self.prompt("Install into which library folder", str(roots[0]))
+        entered = self.prompt_path("Install into which library folder", Want.DIRECTORY, str(roots[0]))
         return Path(expand(entered)) if entered else None
 
     def install_game(self) -> None:
-        entered = self.prompt("Path to a Windows installer")
+        entered = self.prompt_path("Path to a Windows installer", Want.EXECUTABLE)
         if not entered:
             return
         source = Path(expand(entered))

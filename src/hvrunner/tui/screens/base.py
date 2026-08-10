@@ -41,20 +41,20 @@ class Screen:
 
     def run(self) -> None:
         screen = self.app.screen
-        if self.poll_interval:
-            screen.timeout(self.poll_interval)
-        try:
-            while True:
-                self.refresh_data()
-                screen.erase()
-                self.draw()
-                screen.refresh()
-                key = screen.getch()
-                # -1 is a poll timeout, KEY_RESIZE only needs a redraw.
-                if key in (-1, curses.KEY_RESIZE):
-                    continue
-                if not self.handle(key):
-                    return
-        finally:
-            if self.poll_interval:
-                screen.timeout(-1)
+        while True:
+            # Re-asserted every pass rather than set once on entry. There is one
+            # stdscr, so a nested screen's interval outlives the screen that set
+            # it: a log feed opened from the library used to leave the library
+            # blocking on getch, and a screen with no interval of its own used to
+            # inherit one and redraw for no reason.
+            screen.timeout(self.poll_interval or -1)
+            self.refresh_data()
+            screen.erase()
+            self.draw()
+            screen.refresh()
+            key = screen.getch()
+            # -1 is a poll timeout, KEY_RESIZE only needs a redraw.
+            if key in (-1, curses.KEY_RESIZE):
+                continue
+            if not self.handle(key):
+                return

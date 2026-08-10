@@ -37,6 +37,10 @@ def default_config() -> dict[str, Any]:
         # "libgamemode.so: cannot open shared object file" noise from 32-bit and
         # in-container helpers, at the cost of gamemode's scheduling tweaks.
         "use_gamemode": True,
+        # The MangoHud overlay, and the MANGOHUD=1 that turns it on. Off removes
+        # both, and a machine without MangoHud installed simply launches without
+        # it rather than refusing to launch at all.
+        "use_mangohud": True,
         # Proton's native Wayland backend, rather than presenting through
         # XWayland. Off keeps the historical behaviour.
         "enable_wayland": False,
@@ -83,7 +87,18 @@ def load_config(path: Path) -> dict[str, Any]:
     for key, value in data.items():
         if key in config:
             config[key] = _validate_type(key, value, config[key], path)
+        else:
+            # Carried through rather than dropped. Anything not recognised used
+            # to vanish here, and the next save wrote the file back without it,
+            # so a mistyped key silently deleted the line the user wrote.
+            config[key] = value
     return config
+
+
+def unknown_keys(config: dict[str, Any]) -> list[str]:
+    """Keys hvrunner does not recognise, so a typo can be reported rather than kept in silence."""
+    known = default_config()
+    return sorted(key for key in config if key not in known)
 
 
 def save_config(path: Path, config: dict[str, Any]) -> None:

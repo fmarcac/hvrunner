@@ -41,6 +41,13 @@ def test_classify_real_error():
     assert classify("vulkan: failed to create device") == "error"
 
 
+def test_classify_a_wine_crash():
+    """A crash uses none of the usual failure words, so it needs its own hints."""
+    assert classify("wine: Unhandled page fault on read access to 90909090 at address 7BEBC1D3") == "error"
+    assert classify("Unhandled exception: page fault on read access to 0x90909090 in wow64 32-bit code") == "error"
+    assert classify('0138:err:module:loader_init "buddha.dll" failed to initialize, aborting') == "error"
+
+
 def test_classify_warning():
     assert classify("wine: deprecated call used") == "warning"
 
@@ -65,6 +72,27 @@ def test_prune_keeps_the_newest(state_home):
     remaining = sorted(path.name for path in directory.glob("*.log"))
     assert len(remaining) == 3
     assert remaining[-1] == "20260107-000000-game.log"
+
+
+def test_prune_drops_oldest_once_over_the_size_budget(state_home):
+    """err+all can write a lot, so twenty logs kept by count is not a bound."""
+    directory = log_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    for index in range(5):
+        (directory / f"2026010{index}-000000-game.log").write_text("x" * 100)
+    prune_logs(keep=20, budget=250)
+    remaining = sorted(path.name for path in directory.glob("*.log"))
+    # 100 + 100 fits, the third crosses 250 and takes everything older with it.
+    assert remaining == ["20260103-000000-game.log", "20260104-000000-game.log"]
+
+
+def test_prune_never_drops_the_newest_log(state_home):
+    """It is the launch that just happened, and probably still being written."""
+    directory = log_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "20260101-000000-game.log").write_text("x" * 5000)
+    prune_logs(keep=20, budget=10)
+    assert [path.name for path in directory.glob("*.log")] == ["20260101-000000-game.log"]
 
 
 def test_recent_logs_is_newest_first(state_home):

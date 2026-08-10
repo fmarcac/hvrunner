@@ -62,7 +62,7 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 | `j` / `k` | move down and up |
 | `f` | toggle favourite, favourites sort first |
 | `e` | edit, rename or delete the selected game |
-| `a` | add an executable by path |
+| `a` | add an executable, by path or with the browser |
 | `i` | install from a Windows installer |
 | `r` | rescan library folders |
 | `l` | open the log feed |
@@ -72,6 +72,14 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 
 In the log feed: `j`/`k` scroll, `PgUp`/`PgDn` by a screen, `g`/`G` jump to the
 ends, `f` toggles following new output, `n`/`p` switch between logs.
+
+Anywhere a path is asked for, the field takes a value of any length and scrolls
+sideways: arrow keys and `^a`/`^e` move, `^w` rubs out one folder, `^u` clears.
+`tab` opens a file browser starting from the deepest part of what you have
+typed, or from your library folder when it is empty. In the browser `j`/`k`
+move, `enter` opens a folder or picks a file, `h` or `backspace` goes up, `s`
+takes the current folder when a folder is what is wanted, and `esc` returns to
+the field with what you typed still there.
 
 ## Game output
 
@@ -98,6 +106,7 @@ change made in the interface.
 | `shader_cache` | `true` | persistent vkd3d and DXVK pipeline cache |
 | `native_scale` | `false` | drop the output to scale 1 while a game runs |
 | `use_gamemode` | `true` | wrap the command in `gamemoderun` |
+| `use_mangohud` | `true` | wrap the command in `mangohud` and set `MANGOHUD=1` |
 | `enable_wayland` | `false` | set `PROTON_ENABLE_WAYLAND`, bypassing XWayland |
 | `extra_env` | `{}` | extra environment, applied last |
 | `favorites` | `[]` | favourite keys, managed by the interface |

@@ -23,6 +23,26 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
+        "path field",
+        [
+            ("tab", "open the file browser"),
+            ("left right", "move within the value, which scrolls"),
+            ("^a ^e", "jump to the start or the end"),
+            ("^w", "rub out a word, or one folder of a path"),
+            ("^u", "clear the field"),
+        ],
+    ),
+    (
+        "file browser",
+        [
+            ("j k", "move the cursor"),
+            ("enter", "open a folder, or pick a file"),
+            ("h backspace", "go up a folder"),
+            ("s", "use this folder, when a folder is what is wanted"),
+            ("esc", "back to typing, keeping what was typed"),
+        ],
+    ),
+    (
         "log feed",
         [
             ("j k", "scroll a line"),

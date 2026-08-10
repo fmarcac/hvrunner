@@ -4,15 +4,25 @@ from pathlib import Path
 
 import pytest
 
-from hvrunner.constants import DEFAULT_MANGOHUD_CONFIG
+from hvrunner.constants import DEFAULT_MANGOHUD_CONFIG, DEFAULT_WINEDEBUG
 from hvrunner.planning import build_command
+
+
+def test_wine_errors_are_not_suppressed():
+    """err is the only channel that names a DLL whose DllMain faulted.
+
+    Silencing it left a game that died on startup indistinguishable from one
+    that launched, which is what made a failed launch impossible to diagnose.
+    """
+    assert DEFAULT_WINEDEBUG.startswith("err+all")
+    assert "fixme-all" in DEFAULT_WINEDEBUG
 
 
 def test_base_environment(game_factory, config, stub_tools, monkeypatch):
     monkeypatch.delenv("MANGOHUD_CONFIG", raising=False)
     _, env = build_command(game_factory("Plain.exe"), config)
     assert env["MANGOHUD"] == "1"
-    assert env["WINEDEBUG"] == "-all"
+    assert env["WINEDEBUG"] == DEFAULT_WINEDEBUG
     assert env["DISABLE_GAMESCOPE_WSI"] == "1"
     assert env["PROTON_USE_XALIA"] == "0"
 
@@ -66,7 +76,7 @@ def test_extra_env_applied_last(game_factory, config, stub_tools):
 def test_malformed_extra_env_is_ignored(game_factory, config, stub_tools):
     config["extra_env"] = ["not", "a", "mapping"]
     _, env = build_command(game_factory("Plain.exe"), config)
-    assert env["WINEDEBUG"] == "-all"
+    assert env["WINEDEBUG"] == DEFAULT_WINEDEBUG
 
 
 @pytest.mark.parametrize("name", ["ACBlackFlag.exe", "ACBlackFlag_Plus.exe", "acblackflag.EXE"])

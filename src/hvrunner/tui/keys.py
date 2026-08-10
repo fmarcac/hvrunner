@@ -20,6 +20,10 @@ def is_up(key: int) -> bool:
     return key in (curses.KEY_UP, ord("k"))
 
 
+def is_left(key: int) -> bool:
+    return key in (curses.KEY_LEFT, ord("h"))
+
+
 def is_confirm(key: int) -> bool:
     return key in (*RETURN, curses.KEY_ENTER)
 

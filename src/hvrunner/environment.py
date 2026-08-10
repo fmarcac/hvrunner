@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .constants import DEFAULT_WINEDEBUG
 from .models import Game, HvrunnerError
 
 # Environment names worth showing in the interface, in display order. Anything
@@ -70,12 +71,20 @@ def game_environment(executable: Path, install_dir: str, prepare: bool) -> dict[
 
 def _overlay(environment: dict[str, str], config: dict[str, Any]) -> None:
     """MangoHud, Wayland and user supplied entries."""
-    # Only set MANGOHUD_CONFIG when there is something to say. It replaces the
-    # user's MangoHud.conf rather than merging, so an unnecessary value would
-    # silently discard their HUD layout.
-    mangohud_config = os.environ.get("MANGOHUD_CONFIG") or str(config.get("mangohud_config") or "")
-    if mangohud_config:
-        environment["MANGOHUD_CONFIG"] = mangohud_config
+    # Popped rather than merely left unset when off: the environment is
+    # inherited, so MANGOHUD=1 in the shell that started hvrunner would
+    # otherwise turn the overlay back on for a launch that asked for no overlay.
+    if config.get("use_mangohud", True):
+        environment["MANGOHUD"] = "1"
+        # Only set MANGOHUD_CONFIG when there is something to say. It replaces
+        # the user's MangoHud.conf rather than merging, so an unnecessary value
+        # would silently discard their HUD layout.
+        mangohud_config = os.environ.get("MANGOHUD_CONFIG") or str(config.get("mangohud_config") or "")
+        if mangohud_config:
+            environment["MANGOHUD_CONFIG"] = mangohud_config
+    else:
+        environment.pop("MANGOHUD", None)
+        environment.pop("MANGOHUD_CONFIG", None)
 
     if config.get("enable_wayland"):
         environment["PROTON_ENABLE_WAYLAND"] = "1"
@@ -95,10 +104,9 @@ def build(game: Game, config: dict[str, Any], proton: Path, prefix: Path, *, pre
             "GAMEID": "0",
             "PROTONPATH": str(proton),
             "WINEPREFIX": str(prefix),
-            "WINEDEBUG": "-all",
+            "WINEDEBUG": DEFAULT_WINEDEBUG,
             "PROTON_USE_XALIA": "0",
             "DISABLE_GAMESCOPE_WSI": "1",
-            "MANGOHUD": "1",
         }
     )
 

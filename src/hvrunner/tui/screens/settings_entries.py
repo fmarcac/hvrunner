@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ...browsing import Want
 from ...config import expand
 
 if TYPE_CHECKING:
@@ -42,9 +43,9 @@ def _role(app: App, key: str, default: bool) -> Callable[[], str]:
     return lambda: "ok" if app.config.get(key, default) else "text"
 
 
-def _edit_path(app: App, key: str, label: str) -> Callable[[], None]:
+def _edit_path(app: App, key: str, label: str, want: Want) -> Callable[[], None]:
     def action() -> None:
-        entered = app.prompt(label, str(app.config[key]))
+        entered = app.prompt_path(label, want, str(app.config[key]))
         if entered:
             app.config[key] = expand(entered)
             app.save()
@@ -54,7 +55,7 @@ def _edit_path(app: App, key: str, label: str) -> Callable[[], None]:
 
 def _add_root(app: App) -> Callable[[], None]:
     def action() -> None:
-        entered = app.prompt("Folder whose subdirectories hold games")
+        entered = app.prompt_path("Folder whose subdirectories hold games", Want.DIRECTORY)
         if not entered:
             return
         resolved = expand(entered)
@@ -94,14 +95,15 @@ def build(app: App) -> list[Setting]:
             "Proton build",
             "The Proton runtime every game is launched with.",
             lambda: str(config["proton_path"]),
-            _edit_path(app, "proton_path", "Path to a Proton build"),
+            _edit_path(app, "proton_path", "Path to a Proton build", Want.DIRECTORY),
             lambda: "linux",
         ),
         Setting(
             "umu runner",
             "umu supplies the Steam Linux Runtime container Proton needs.",
             lambda: str(config["umu_path"]),
-            _edit_path(app, "umu_path", "Path to umu-run"),
+            # A plain file, not a .exe: umu-run has no extension at all.
+            _edit_path(app, "umu_path", "Path to umu-run", Want.FILE),
             lambda: "linux",
         ),
         Setting(
@@ -141,6 +143,14 @@ def build(app: App) -> list[Setting]:
             _state(app, "enable_wayland", False, "native Wayland", "XWayland"),
             _toggle(app, "enable_wayland", False),
             _role(app, "enable_wayland", False),
+        ),
+        Setting(
+            "MangoHud overlay",
+            "Wraps the command in mangohud and sets MANGOHUD=1. Off removes both. "
+            "A machine without MangoHud installed launches without it either way.",
+            _state(app, "use_mangohud", True, "on", "off"),
+            _toggle(app, "use_mangohud", True),
+            _role(app, "use_mangohud", True),
         ),
         Setting(
             "gamemode",

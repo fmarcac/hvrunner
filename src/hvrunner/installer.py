@@ -9,6 +9,7 @@ from typing import Any
 
 from .constants import CUSTOM_SOURCE, INSTALLER_PATTERN
 from .environment import build as build_environment
+from .launcher import alive, working_directory
 from .library import normalise, rank_executables
 from .logs import new_log_path
 from .models import Game, HvrunnerError
@@ -76,7 +77,11 @@ def start(source: Path, target: Path, config: dict[str, Any]) -> InstallRun:
         handle.write(f"$ {' '.join(command)}\n")
         process = subprocess.Popen(
             command,
-            cwd=str(target),
+            # The installer's own folder, for the same reason a game gets its
+            # own: a multi part setup keeps its .bin and .cab files beside the
+            # exe and resolves them from the working directory. The empty target
+            # folder offered nothing, and the prefix decides where it installs.
+            cwd=working_directory(str(source)),
             env=environment,
             stdin=subprocess.DEVNULL,
             stdout=handle,
@@ -91,13 +96,8 @@ def start(source: Path, target: Path, config: dict[str, Any]) -> InstallRun:
 
 
 def running(run: InstallRun) -> bool:
-    """True while the installer is alive.
-
-    Popen.wait cannot answer this: cli.main sets SIGCHLD to SIG_IGN so the
-    kernel reaps children itself, after which wait raises ChildProcessError and
-    poll never reports a status.
-    """
-    return Path(f"/proc/{run.process.pid}").exists()
+    """True while the installer is alive."""
+    return alive(run.process.pid)
 
 
 def discover(prefix: Path, name: str) -> list[Path]:

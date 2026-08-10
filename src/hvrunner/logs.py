@@ -12,7 +12,7 @@ import re
 import time
 from pathlib import Path
 
-from .constants import LOG_KEEP, LOG_TAIL_BYTES, log_dir
+from .constants import LOG_BUDGET_BYTES, LOG_KEEP, LOG_TAIL_BYTES, log_dir
 from .models import Game, HvrunnerError
 
 # CSI sequences, plus the OSC title-setting form some Wine helpers emit.
@@ -44,7 +44,11 @@ NOISE_PATTERNS = (
     "XI_BadDevice",
 )
 
-_ERROR_HINT = re.compile(r"\b(error|failed|failure|fatal|abort|cannot)\b", re.I)
+# A Wine crash announces itself without using any of the words that normally
+# mark a failure: "Unhandled page fault on read access to 90909090" contains
+# neither error nor failed, and would otherwise be drawn as ordinary output in
+# the middle of a register dump.
+_ERROR_HINT = re.compile(r"\b(error|failed|failure|fatal|abort|cannot|unhandled|page fault|segmentation fault)\b", re.I)
 _WARNING_HINT = re.compile(r"\b(warn|warning|deprecated)\b", re.I)
 
 
@@ -77,7 +81,13 @@ def new_log_path(game: Game, now: float | None = None) -> Path:
     return directory / f"{stamp}-{game.slug}.log"
 
 
-def prune_logs(keep: int = LOG_KEEP) -> None:
+def prune_logs(keep: int = LOG_KEEP, budget: int = LOG_BUDGET_BYTES) -> None:
+    """Drop the oldest logs, first by count and then by total size.
+
+    Sorting is by filename, which is a timestamp, so the newest comes first. It
+    is never dropped: it is the log of the launch that just happened, and very
+    likely still being written.
+    """
     directory = log_dir()
     try:
         files = sorted((path for path in directory.glob("*.log") if path.is_file()), reverse=True)
@@ -85,6 +95,16 @@ def prune_logs(keep: int = LOG_KEEP) -> None:
         return
     for path in files[keep:]:
         path.unlink(missing_ok=True)
+    total = 0
+    for index, path in enumerate(files[:keep]):
+        try:
+            total += path.stat().st_size
+        except OSError:
+            continue
+        # Walking newest to oldest, so once the running total is over budget
+        # every remaining log is older and goes too.
+        if index and total > budget:
+            path.unlink(missing_ok=True)
 
 
 def recent_logs(limit: int = LOG_KEEP) -> list[Path]:

@@ -27,6 +27,19 @@ CUSTOM_SOURCE = "Custom"
 # logs an error on every poll when no MPRIS player is running.
 DEFAULT_MANGOHUD_CONFIG = ""
 
+# Wine's err channel is the only place a fatal startup failure is reported. A
+# DLL whose DllMain faults produces one err:module:loader_init line naming it
+# and nothing else, so "-all" left a game that died on startup looking exactly
+# like one that launched: a log full of gamemode noise and no reason. fixme is
+# the genuinely noisy channel and none of it is actionable, so it stays off.
+DEFAULT_WINEDEBUG = "err+all,fixme-all"
+
+# How long after a launch a vanished process still counts as a failed start
+# rather than a game the user played and quit. Prefix creation and shader
+# compilation happen before the window appears, so this only has to outlast the
+# point at which the loader would have given up.
+LAUNCH_SETTLE_SECONDS = 20.0
+
 # Names passed to the supervising process so it can undo what launch changed.
 RESTORE_MONITOR_ENV = "HVRUNNER_RESTORE_MONITOR"
 ENFORCE_AFFINITY_ENV = "HVRUNNER_ENFORCE_AFFINITY"
@@ -49,6 +62,15 @@ COMM_MAX_LENGTH = 15
 
 LOG_KEEP = 20
 LOG_TAIL_BYTES = 256 * 1024
+
+# Total the log directory may hold. err+all lets a single launch write far more
+# than the old -all ever did, and twenty unbounded logs is a lot of disk.
+#
+# This bounds what is kept, not what is being written: the game inherits the log
+# descriptor and writes to it directly, so hvrunner never sees those bytes and
+# cannot stop them. Capping the live file would mean draining a pipe in a
+# process that outlives the interface, which the supervisor does not do today.
+LOG_BUDGET_BYTES = 64 * 1024 * 1024
 
 
 def state_dir() -> Path:

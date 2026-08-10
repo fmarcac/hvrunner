@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from hvrunner.config import default_config, expand, load_config, save_config
+from hvrunner.config import default_config, expand, load_config, save_config, unknown_keys
 from hvrunner.models import HvrunnerError
 
 
@@ -49,10 +49,15 @@ def test_accepts_valid_values(tmp_path):
     assert loaded["extra_env"] == {"A": "b"}
 
 
-def test_unknown_keys_are_ignored(tmp_path):
+def test_unknown_keys_are_kept_rather_than_ignored(tmp_path):
+    """This asserted the opposite until the round trip was found to lose them.
+
+    Dropping the key on load was invisible on its own; the damage was that the
+    next save wrote the file back without it.
+    """
     path = tmp_path / "c.json"
     path.write_text(json.dumps({"nonsense": 1}))
-    assert "nonsense" not in load_config(path)
+    assert load_config(path)["nonsense"] == 1
 
 
 def test_save_creates_parents_and_leaves_no_temp(tmp_path):
@@ -74,3 +79,22 @@ def test_save_round_trips(tmp_path):
 def test_expand_resolves_home(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
     assert expand("~/games") == str(tmp_path / "games")
+
+
+def test_an_unrecognised_key_survives_a_load_and_save(tmp_path):
+    """It used to be dropped on load, so the next save deleted the user's line."""
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"use_gamemode": False, "use_gamemdoe": True}))
+    config = load_config(path)
+    assert config["use_gamemode"] is False
+    assert config["use_gamemdoe"] is True
+
+    save_config(path, config)
+    assert json.loads(path.read_text())["use_gamemdoe"] is True
+
+
+def test_unknown_keys_reports_the_typo():
+    config = default_config()
+    assert unknown_keys(config) == []
+    config["use_gamemdoe"] = True
+    assert unknown_keys(config) == ["use_gamemdoe"]

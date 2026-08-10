@@ -78,6 +78,22 @@ def test_focused_monitor_picks_the_focused_one(monkeypatch):
     assert monitor.name == "DP-3"
 
 
+def test_focus_is_carried_on_the_monitor():
+    found = parse_monitors(PAYLOAD)
+    assert [monitor.focused for monitor in found] == [True, False]
+
+
+def test_focused_monitor_falls_back_to_the_first(monkeypatch):
+    """hyprctl can report every output unfocused, and a scale still has to be read."""
+    import hvrunner.display as display_module
+
+    payload = json.dumps([{"name": "DP-9", "width": 800, "height": 600, "refreshRate": 60}])
+    monkeypatch.setattr(display_module, "_run", lambda arguments: payload)
+    monitor = focused_monitor()
+    assert monitor is not None
+    assert monitor.name == "DP-9"
+
+
 def test_focused_monitor_without_hyprctl(monkeypatch):
     import hvrunner.display as display_module
 

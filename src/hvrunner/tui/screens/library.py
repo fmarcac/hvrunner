@@ -13,6 +13,13 @@ KEYS = "enter run   e edit   a add   i install   r rescan   l logs   s settings 
 
 
 class LibraryScreen(Screen):
+    #: Only so a launch that dies can correct its own status line rather than
+    #: waiting for the next keypress to notice.
+    poll_interval = 500
+
+    def refresh_data(self) -> None:
+        self.app.check_launch()
+
     def draw(self) -> Rect:
         app = self.app
         favourites = sum(1 for game in app.games if game.favorite)

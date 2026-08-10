@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ...browsing import Want
 from ...config import expand
 
 if TYPE_CHECKING:
@@ -36,9 +37,9 @@ def _edit_text(screen: EntryScreen, key: str, label: str) -> Callable[[], None]:
     return action
 
 
-def _edit_path(screen: EntryScreen, key: str, label: str) -> Callable[[], None]:
+def _edit_path(screen: EntryScreen, key: str, label: str, want: Want) -> Callable[[], None]:
     def action() -> None:
-        entered = screen.app.prompt(label, str(screen.entry.get(key, "")))
+        entered = screen.app.prompt_path(label, want, str(screen.entry.get(key, "")))
         if entered is None:
             return
         resolved = expand(entered)
@@ -75,14 +76,14 @@ def build(screen: EntryScreen) -> list[Field]:
             "The binary that runs. Changing it moves the favourite with it, "
             "because the favourite key is built from this path.",
             lambda: str(entry.get("executable", "")),
-            _edit_path(screen, "executable", "Path to a Windows executable"),
+            _edit_path(screen, "executable", "Path to a Windows executable", Want.EXECUTABLE),
         ),
         Field(
             "Install folder",
             "Where the Proton prefix lives. For a game installed by an installer "
             "this is the game folder, not the folder holding the executable.",
             lambda: str(entry.get("install_dir", "")),
-            _edit_path(screen, "install_dir", "Folder holding the prefix"),
+            _edit_path(screen, "install_dir", "Folder holding the prefix", Want.DIRECTORY),
         ),
         Field(
             "Launch arguments",
