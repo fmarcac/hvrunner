@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..core import browsing, entries, installer
+from ..core import entries, installer
 from ..core.browsing import Want
 from ..core.config import expand, save_config, unknown_keys
 from ..core.constants import LAUNCH_SETTLE_SECONDS
@@ -20,8 +20,8 @@ from ..core.launcher import alive, launch
 from ..core.library import display_name, library
 from ..core.models import Game, HvrunnerError
 from . import prompt as prompt_module
+from .paths import ask_for_path
 from .screens import (
-    BrowseScreen,
     EntryScreen,
     HelpScreen,
     LibraryScreen,
@@ -88,39 +88,8 @@ class App:
             self.status = "Terminal is too small for that"
         return str(value) if isinstance(value, str) else None
 
-    def _browse_root(self) -> Path:
-        """Where a browse with nothing typed starts.
-
-        A library folder is the answer nearly every time, so offering the whole
-        filesystem first would just be a directory to walk out of.
-        """
-        for root in self.config["library_roots"]:
-            candidate = Path(expand(str(root)))
-            if candidate.is_dir():
-                return candidate
-        return Path.home()
-
     def prompt_path(self, label: str, want: Want, initial: str = "") -> str | None:
-        """Ask for a path, with tab opening the browser.
-
-        The prompt cannot open the browser itself: the browser is a screen, and
-        screens do not import one another. Leaving the browser without picking
-        returns to the field with what was typed still there.
-        """
-        typed = initial
-        while True:
-            answer = prompt_module.ask(self.screen, self.theme, label, typed, browsable=True)
-            if answer is None:
-                if self.screen.getmaxyx()[1] < prompt_module.MINIMUM_WIDTH:
-                    self.status = "Terminal is too small for that"
-                return None
-            if isinstance(answer, str):
-                return answer
-            typed = answer.text
-            start = browsing.start_directory(typed, self._browse_root())
-            picked = BrowseScreen(self, start, want).choose()
-            if picked is not None:
-                return str(picked)
+        return ask_for_path(self, label, want, initial)
 
     # ---- actions ------------------------------------------------------------
 
