@@ -18,6 +18,9 @@ def draft(game: Game) -> dict[str, Any]:
         "name": game.name,
         "executable": game.executable,
         "install_dir": game.install_dir,
+        # Carried so that promoting a game launched under an id does not
+        # silently drop the id it was launched with.
+        "steam_appid": game.steam_appid,
         "launch_args": list(game.launch_args),
     }
 

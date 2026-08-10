@@ -10,6 +10,7 @@ def test_draft_describes_a_scanned_game(game_factory):
         "name": "BFResynced",
         "executable": game.executable,
         "install_dir": game.install_dir,
+        "steam_appid": "",
         "launch_args": [],
     }
 

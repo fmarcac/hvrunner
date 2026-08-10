@@ -206,3 +206,21 @@ def test_install_dir_is_used_when_given(tmp_path, config):
     config["library_roots"] = []
     config["custom_games"] = [{"name": "W3", "executable": str(exe), "install_dir": str(target)}]
     assert custom_games(config, set())[0].install_dir == str(target)
+
+
+def test_a_declared_entry_carries_its_steam_app_id(config, tmp_path):
+    folder = tmp_path / "G"
+    folder.mkdir()
+    executable = folder / "G.exe"
+    executable.write_text("stub")
+    config["custom_games"] = [{"name": "G", "executable": str(executable), "steam_appid": "480"}]
+    assert library(config)[0].steam_appid == "480"
+
+
+def test_a_scanned_game_has_no_steam_app_id(config, tmp_path):
+    folder = tmp_path / "Scanned"
+    folder.mkdir()
+    (folder / "Scanned.exe").write_text("stub")
+    config["custom_games"] = []
+    game = next(g for g in library(config) if g.name == "Scanned")
+    assert game.steam_appid == ""
