@@ -181,3 +181,45 @@ def test_spacewar_launch_overrides_a_stored_id(config, state_home, stub_tools, m
     assert recorded["env"]["SteamAppId"] == SPACEWAR_APPID
     assert recorded["env"]["STEAM_COMPAT_APP_ID"] == SPACEWAR_APPID
     assert recorded["env"]["PROTON_DISABLE_LSTEAMCLIENT"] == "0"
+
+
+def test_a_second_launch_is_refused_while_the_game_runs(config, state_home, stub_tools, monkeypatch, tmp_path):
+    """Proton runs with "run" now, so nothing else stops two copies starting.
+
+    Checked against the process table rather than the wineserver socket: Proton
+    keeps a wineserver alive after the game exits, so the socket reports a
+    prefix as busy long after its game closed.
+    """
+    import hvrunner.core.launcher as launcher_module
+    from hvrunner.core.constants import CUSTOM_SOURCE
+    from hvrunner.core.models import Game, HvrunnerError
+
+    folder = tmp_path / "Busy"
+    folder.mkdir()
+    executable = folder / "Busy.exe"
+    executable.write_text("stub")
+    game = Game("Busy", CUSTOM_SOURCE, str(folder), str(executable))
+
+    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, install_dir: [4242])
+    with pytest.raises(HvrunnerError, match="already running"):
+        launcher_module.launch(game, config)
+
+
+def test_a_quiet_prefix_still_launches(config, state_home, stub_tools, monkeypatch, tmp_path):
+    import hvrunner.core.launcher as launcher_module
+    from hvrunner.core.constants import CUSTOM_SOURCE
+    from hvrunner.core.models import Game
+
+    class FakePopen:
+        def __init__(self, command, **kwargs):
+            self.pid = 99
+
+    folder = tmp_path / "Quiet"
+    folder.mkdir()
+    executable = folder / "Quiet.exe"
+    executable.write_text("stub")
+    game = Game("Quiet", CUSTOM_SOURCE, str(folder), str(executable))
+
+    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, install_dir: [])
+    monkeypatch.setattr(launcher_module.subprocess, "Popen", FakePopen)
+    assert launcher_module.launch(game, config).pid == 99

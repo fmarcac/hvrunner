@@ -12,7 +12,7 @@ from typing import Any
 
 from . import display
 from . import prefix as prefix_module
-from .affinity import watcher_command
+from .affinity import matching_game_pids, watcher_command
 from .constants import ENFORCE_AFFINITY_ENV, RESTORE_MONITOR_ENV
 from .logs import new_log_path, prune_logs
 from .models import Game, HvrunnerError
@@ -102,6 +102,15 @@ def _start_supervisor(game: Game, config: dict[str, Any], restore_monitor: str |
 
 def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     prepared = plan(game, config, prepare=True)
+    # Refused rather than started. Proton runs with "run" now, which would
+    # happily put a second copy on top of the first, and two instances writing
+    # the same saves is worse than a launch that declines.
+    #
+    # Asked of the process table, not of the wineserver socket: Proton keeps a
+    # wineserver alive after the game exits, so the socket says "busy" for a
+    # prefix whose game closed minutes ago and would block every later launch.
+    if matching_game_pids(Path(game.executable).name, game.install_dir):
+        raise HvrunnerError(f"{game.name} is already running")
     # Before the game rather than after: Wine holds the registry in wineserver
     # and flushes it on exit, so anything written while the game owns the prefix
     # is discarded the moment it quits. A prefix Proton has not built yet has no

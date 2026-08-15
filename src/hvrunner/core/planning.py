@@ -12,6 +12,12 @@ from . import prefix as prefix_module
 from .environment import NOTABLE_ENV
 from .models import Game, HvrunnerError
 
+# "run", not "waitforexitandrun". The waiting verb blocks until every process in
+# the prefix is gone and says nothing at all while it waits, so launching into a
+# prefix that already held a game hung forever and read as a failed launch.
+# prefix.busy answers that question directly instead, before anything starts.
+PROTON_VERB = "run"
+
 
 @dataclass(frozen=True)
 class LaunchPlan:
@@ -71,7 +77,7 @@ def runner(proton: Path) -> list[str]:
     GameOverlayRenderer64.dll with error 126. Proton run directly is given the
     real path and populates the prefix, and it still applies protonfixes.
     """
-    return [str(require_file(proton / "proton", "Proton")), "waitforexitandrun"]
+    return [str(require_file(proton / "proton", "Proton")), PROTON_VERB]
 
 
 def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> LaunchPlan:

@@ -142,7 +142,7 @@ def test_every_game_runs_through_proton(game_factory, config, stub_tools, fake_p
     Steam facing failure this launcher had came from that."""
     game = game_factory("Plain.exe")
     command, _ = build_command(game, config)
-    assert command[-3:] == [str(fake_proton / "proton"), "waitforexitandrun", game.executable]
+    assert command[-3:] == [str(fake_proton / "proton"), "run", game.executable]
 
 
 def test_prepare_creates_the_prefix_and_links_pfx(game_factory, config, stub_tools):
@@ -161,3 +161,11 @@ def test_prepare_creates_the_prefix_and_links_pfx(game_factory, config, stub_too
 def test_preview_still_touches_nothing(game_factory, config, stub_tools):
     prepared = plan(game_factory("Plain.exe"), config)
     assert not prepared.prefix.exists()
+
+
+def test_proton_is_run_not_waited_on(game_factory, config, stub_tools):
+    """waitforexitandrun blocks until the prefix is empty and prints nothing
+    while it waits, so a launch into a busy prefix hung and read as a failure."""
+    command, _ = build_command(game_factory("Plain.exe"), config)
+    assert "run" in command
+    assert "waitforexitandrun" not in command
