@@ -98,8 +98,11 @@ class App:
         if not game:
             return
         if as_spacewar:
-            # A one off. The replace never reaches the config, so a game that
-            # always needs an id gets one from the entry editor instead.
+            # An override, not the default: a game with no declared id already
+            # runs as Spacewar. This is for the entry that declares a real
+            # application the user does not own, where running as that id fails
+            # and running as Spacewar works. A one off, because the replace
+            # never reaches the config.
             game = replace(game, steam_appid=SPACEWAR_APPID)
         try:
             result = launch(game, self.config)

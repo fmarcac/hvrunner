@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .constants import DEFAULT_WINEDEBUG
+from .constants import DEFAULT_COMPAT_ROOT, DEFAULT_WINEDEBUG, SPACEWAR_APPID
 from .models import Game, HvrunnerError
 
 # Environment names worth showing in the interface, in display order. Anything
@@ -14,7 +14,8 @@ from .models import Game, HvrunnerError
 NOTABLE_ENV = (
     "PROTONPATH",
     "WINEPREFIX",
-    "GAMEID",
+    "SteamAppId",
+    "STEAM_COMPAT_CLIENT_INSTALL_PATH",
     "PROTON_DISABLE_LSTEAMCLIENT",
     "VKD3D_SHADER_CACHE_PATH",
     "MANGOHUD_CONFIG",
@@ -42,6 +43,94 @@ def _mkdir(path: Path, label: str) -> None:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as error:
         raise HvrunnerError(f"cannot create {label} {path}: {error}") from error
+
+
+def steam_root(config: dict[str, Any]) -> Path:
+    return Path(str(config.get("steam_root") or DEFAULT_COMPAT_ROOT)).expanduser()
+
+
+# Where a repack keeps the application id it expects to run as. Only fixed
+# shapes, no walk: plan() runs on every cursor move to draw the preview.
+APPID_FILES = (
+    "steam_appid.txt",
+    "*_Data/Plugins/x86_64/steam_settings/steam_appid.txt",
+    "*_Data/Plugins/x86_64/steam_appid.txt",
+    "*_Data/Plugins/steam_settings/steam_appid.txt",
+)
+
+
+# A bundled fix presents one id to Steam while telling the game it is another.
+# OnlineFix spells it FakeAppId, unsteam fake_app_id; both mean the same thing,
+# and it is the one that has to reach the environment. Reading the real id
+# instead is how Approximately Up got 3904850 when its fix expected 480.
+FIX_FILES = ("OnlineFix.ini", "unsteam.ini")
+FIX_KEY = "fakeappid"
+
+
+def _digits(text: str) -> str:
+    return "".join(character for character in text if character.isdigit())
+
+
+def fix_appid(executable: Path) -> str:
+    """The id a bundled fix wants presented to Steam, if one is installed."""
+    for name in FIX_FILES:
+        path = executable.parent / name
+        try:
+            lines = path.read_text(errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            key, separator, value = line.partition("=")
+            if not separator:
+                continue
+            if key.strip().replace("_", "").casefold() == FIX_KEY:
+                found = _digits(value)
+                if found:
+                    return found
+    return ""
+
+
+def settings_appid(executable: Path) -> str:
+    """The application id the game itself declares, if it declares one."""
+    folder = executable.parent
+    for pattern in APPID_FILES:
+        try:
+            found = sorted(folder.glob(pattern))
+        except OSError:
+            continue
+        for path in found:
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
+            digits = _digits(text)
+            if digits:
+                return digits
+    return ""
+
+
+def application_id(game: Game) -> str:
+    """The Steam application a game runs as.
+
+    A declared id wins, then a bundled fix's fake id, then whatever the game
+    ships, then Spacewar.
+
+    The fix comes before the game's own settings because it exists to present a
+    different id than the game believes it has: reading the game's instead gave
+    Approximately Up 3904850 when its OnlineFix expected 480.
+
+    The game's own id comes before Spacewar because a repack with a bundled
+    emulator reads its steam_settings and ignores the environment. Forcing
+    Spacewar put the two in contradiction and the game exited before its engine
+    started, with nothing in the log to say why.
+
+    The fallback must never be empty. protonfixes derives its own game id from
+    the digits in STEAM_COMPAT_DATA_PATH and raises IndexError when the path
+    holds none, which a prefix named .hvrunner-proton always does, so an unset
+    id kills the launch outright.
+    """
+    executable = Path(game.executable)
+    return game.steam_appid or fix_appid(executable) or settings_appid(executable) or SPACEWAR_APPID
 
 
 def game_environment(executable: Path, install_dir: str, prepare: bool) -> dict[str, str]:
@@ -99,41 +188,42 @@ def _overlay(environment: dict[str, str], config: dict[str, Any]) -> None:
             environment[str(name)] = str(value)
 
 
-def game_id(steam_appid: str) -> str:
-    """umu only reads an application id out of a GAMEID shaped umu-<id>.
-
-    A bare "480" does not match its ^umu-[\\d\\w]+$ check, so the launch would
-    quietly run as application 0 instead.
-    """
-    return f"umu-{steam_appid}" if steam_appid else "0"
-
-
 def build(game: Game, config: dict[str, Any], proton: Path, prefix: Path, *, prepare: bool) -> dict[str, str]:
+    appid = application_id(game)
     environment = os.environ.copy()
     environment.update(
         {
-            "GAMEID": game_id(game.steam_appid),
             "PROTONPATH": str(proton),
             "WINEPREFIX": str(prefix),
             "WINEDEBUG": DEFAULT_WINEDEBUG,
             "PROTON_USE_XALIA": "0",
             "DISABLE_GAMESCOPE_WSI": "1",
+            # The name umu could never pass on. Without it Proton's
+            # setup_steam_files leaves C:\\Program Files (x86)\\Steam empty
+            # while still writing SteamPath into the registry, and anything
+            # resolving a Steam file through that key loads nothing.
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(steam_root(config)),
+            # Proton derives WINEPREFIX from this, as <path>/pfx, which is why
+            # the prefix carries a pfx symlink pointing back at itself.
+            "STEAM_COMPAT_DATA_PATH": str(prefix),
+            "STEAM_COMPAT_APP_ID": appid,
+            "SteamAppId": appid,
+            "SteamGameId": appid,
+            "SteamEnv": "1",
+            # Proton-GE turns the bridge off itself unless this name is already
+            # in the environment, whatever its value.
+            "PROTON_DISABLE_LSTEAMCLIENT": "0",
         }
     )
-
-    if game.steam_appid:
-        # Proton-GE disables the bridge itself unless this name is already in
-        # the environment, whatever its value. Running under an application id
-        # means presenting as a Steam game, and this is the half of that which
-        # reaches the Steam client.
-        environment["PROTON_DISABLE_LSTEAMCLIENT"] = "0"
+    # umu's own spelling of the application id, and the source of the umu-<id>
+    # regex trap. Nothing reads it now, and an inherited one would only mislead.
+    environment.pop("GAMEID", None)
 
     if config.get("shader_cache", True):
         cache = prefix / "shadercache"
         if prepare:
             _mkdir(cache, "shader cache")
-        # vkd3d-proton reads VKD3D_SHADER_CACHE_PATH; DXVK reads its own. umu
-        # sets neither, only STEAM_COMPAT_SHADER_PATH.
+        # vkd3d-proton reads VKD3D_SHADER_CACHE_PATH; DXVK reads its own.
         environment["VKD3D_SHADER_CACHE_PATH"] = str(cache)
         environment["DXVK_STATE_CACHE_PATH"] = str(cache)
 

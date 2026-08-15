@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from .constants import (
+    DEFAULT_COMPAT_ROOT,
     DEFAULT_CUSTOM_ROOT,
     DEFAULT_MANGOHUD_CONFIG,
     DEFAULT_PROTON,
-    DEFAULT_UMU,
 )
 from .models import HvrunnerError
 
@@ -20,7 +20,11 @@ def default_config() -> dict[str, Any]:
     return {
         "library_roots": [str(DEFAULT_CUSTOM_ROOT)],
         "proton_path": str(DEFAULT_PROTON),
-        "umu_path": str(DEFAULT_UMU),
+        # Where the Steam client is installed. Passed to Proton as
+        # STEAM_COMPAT_CLIENT_INSTALL_PATH, which is what populates the prefix
+        # with steamclient64.dll and the overlay. umu used to sit in front of
+        # Proton and blanked this name, which is why it no longer does.
+        "steam_root": str(DEFAULT_COMPAT_ROOT),
         "custom_prefix_name": ".hvrunner-proton",
         "enforce_all_cpus": True,
         # Empty leaves MANGOHUD_CONFIG unset, so MangoHud reads the user's own

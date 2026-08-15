@@ -11,7 +11,7 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
         "library",
         [
             ("enter", "run the selected game"),
-            ("S", "launch as Spacewar, Steam app id 480"),
+            ("S", "launch as Spacewar, overriding a declared app id"),
             ("j k", "move the cursor"),
             ("f", "favourite, which sorts it to the top"),
             ("e", "edit, rename or delete the selected game"),

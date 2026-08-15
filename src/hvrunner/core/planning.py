@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from . import environment as environment_module
+from . import prefix as prefix_module
 from .environment import NOTABLE_ENV
 from .models import Game, HvrunnerError
 
@@ -42,7 +43,7 @@ def prefix_path(game: Game, config: dict[str, Any]) -> Path:
 
 
 def wrappers(config: dict[str, Any]) -> list[str]:
-    """The commands umu is wrapped in, outermost first.
+    """The commands Proton is wrapped in, outermost first.
 
     Neither is required. A binary that is enabled but not installed is an
     environment fact rather than a misconfiguration, and refusing to launch over
@@ -58,27 +59,41 @@ def wrappers(config: dict[str, Any]) -> list[str]:
     return found
 
 
+def runner(proton: Path) -> list[str]:
+    """Proton itself, with nothing in front of it.
+
+    umu used to sit here. It assigns STEAM_COMPAT_CLIENT_INSTALL_PATH an empty
+    string and never reassigns it, so Proton's setup_steam_files left
+    C:\\Program Files (x86)\\Steam empty while still writing SteamPath and
+    ActiveProcess into the registry. Every Steam facing failure this launcher
+    had traces back to that: a genuine steam_api64.dll reporting Steam as not
+    running, and OnlineFix's SteamOverlay64.dll failing to load
+    GameOverlayRenderer64.dll with error 126. Proton run directly is given the
+    real path and populates the prefix, and it still applies protonfixes.
+    """
+    return [str(require_file(proton / "proton", "Proton")), "waitforexitandrun"]
+
+
 def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> LaunchPlan:
     """Work out exactly what would run.
 
     With prepare left false this touches nothing on disk, so the interface can
-    show a live preview as the cursor moves.
+    show a live preview as the cursor moves. With it true the prefix is brought
+    into existence and given its layout, because a launch must never be the
+    thing that discovers the prefix was missing.
     """
     proton = resolve_proton(config)
-    umu = require_file(Path(str(config["umu_path"])).expanduser(), "umu")
     executable = require_file(Path(game.executable), "game executable")
 
     prefix = prefix_path(game, config)
     prefix_ready = prefix.is_dir()
-    if prepare and not prefix_ready:
-        try:
-            prefix.mkdir(parents=True, exist_ok=True)
-        except OSError as error:
-            raise HvrunnerError(f"cannot create prefix {prefix}: {error}") from error
+    if prepare:
+        prefix_module.create(prefix)
+        prefix_module.link_pfx(prefix)
 
     built = environment_module.build(game, config, proton, prefix, prepare=prepare)
 
-    command = [*wrappers(config), str(umu), str(executable), *game.launch_args]
+    command = [*wrappers(config), *runner(proton), str(executable), *game.launch_args]
     return LaunchPlan(command=command, environment=built, prefix=prefix, prefix_ready=prefix_ready)
 
 

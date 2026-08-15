@@ -52,12 +52,6 @@ def test_proton_path_pointing_at_the_binary_is_accepted(game_factory, config, st
     assert env["PROTONPATH"] == str(fake_proton)
 
 
-def test_missing_umu_is_reported(game_factory, config, stub_tools, tmp_path):
-    config["umu_path"] = str(tmp_path / "absent")
-    with pytest.raises(HvrunnerError, match="umu is unavailable"):
-        build_command(game_factory("Plain.exe"), config)
-
-
 def test_missing_executable_is_reported(config, stub_tools, tmp_path):
     game = Game("Gone", "Custom", str(tmp_path), str(tmp_path / "gone.exe"))
     with pytest.raises(HvrunnerError, match="game executable is unavailable"):
@@ -70,7 +64,7 @@ def test_a_missing_wrapper_does_not_stop_a_launch(game_factory, config, monkeypa
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: None)
     command, _ = build_command(game_factory("Plain.exe"), config)
-    assert command[0].endswith("umu-run")
+    assert command[0].endswith("proton")
 
 
 def test_mangohud_can_be_disabled(game_factory, config, stub_tools):
@@ -95,7 +89,7 @@ def test_both_wrappers_can_be_disabled(game_factory, config, stub_tools):
     config["use_mangohud"] = False
     config["use_gamemode"] = False
     command, _ = build_command(game_factory("Plain.exe"), config)
-    assert command[0].endswith("umu-run")
+    assert command[0].endswith("proton")
 
 
 def test_plan_does_not_touch_the_disk(game_factory, config, stub_tools):
@@ -137,7 +131,33 @@ def test_notable_environment_is_ordered_and_filtered(game_factory, config, stub_
     assert names[0] == "PROTONPATH"
     assert "DXVK_ENABLE_NVAPI" in names
     assert "VKD3D_SHADER_CACHE_PATH" in names
-    # GAMEID used to be hidden here as uninteresting. It decides which Steam
-    # application the game runs as, so the pane that answers "what will
-    # actually run" has to show it.
-    assert "GAMEID" in names
+    # The pane answers "what will actually run", so the id the game presents
+    # as and the Steam directory Proton populates both belong in it.
+    assert "SteamAppId" in names
+    assert "STEAM_COMPAT_CLIENT_INSTALL_PATH" in names
+
+
+def test_every_game_runs_through_proton(game_factory, config, stub_tools, fake_proton):
+    """umu is gone. It blanked STEAM_COMPAT_CLIENT_INSTALL_PATH, and every
+    Steam facing failure this launcher had came from that."""
+    game = game_factory("Plain.exe")
+    command, _ = build_command(game, config)
+    assert command[-3:] == [str(fake_proton / "proton"), "waitforexitandrun", game.executable]
+
+
+def test_prepare_creates_the_prefix_and_links_pfx(game_factory, config, stub_tools):
+    """Proton uses <STEAM_COMPAT_DATA_PATH>/pfx as the WINEPREFIX.
+
+    Without the link it builds a second prefix one level down and the game
+    opens with none of its saves. installer.discover walks the same path.
+    """
+    prepared = plan(game_factory("Plain.exe"), config, prepare=True)
+    assert prepared.prefix.is_dir()
+    link = prepared.prefix / "pfx"
+    assert link.is_symlink()
+    assert link.resolve() == prepared.prefix.resolve()
+
+
+def test_preview_still_touches_nothing(game_factory, config, stub_tools):
+    prepared = plan(game_factory("Plain.exe"), config)
+    assert not prepared.prefix.exists()

@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from . import display
+from . import prefix as prefix_module
 from .affinity import watcher_command
 from .constants import ENFORCE_AFFINITY_ENV, RESTORE_MONITOR_ENV
 from .logs import new_log_path, prune_logs
 from .models import Game, HvrunnerError
-from .planning import plan
+from .planning import plan, resolve_proton
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,11 @@ def _start_supervisor(game: Game, config: dict[str, Any], restore_monitor: str |
 
 def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     prepared = plan(game, config, prepare=True)
+    # Before the game rather than after: Wine holds the registry in wineserver
+    # and flushes it on exit, so anything written while the game owns the prefix
+    # is discarded the moment it quits. A prefix Proton has not built yet has no
+    # system.reg to read, so nothing runs and the launch is not made to wait.
+    repairs = prefix_module.repair(prepared.prefix, resolve_proton(config))
     log_path = new_log_path(game)
     restore_monitor = drop_to_native_scale(config)
     try:
@@ -110,6 +116,8 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
             display.apply(restore_monitor)
         raise HvrunnerError(f"cannot open log {log_path}: {error}") from error
     try:
+        for line in repairs:
+            handle.write(f"# {line}\n")
         handle.write(f"$ {' '.join(prepared.command)}\n")
         # Child output goes to the log rather than the terminal the interface is
         # drawing on, which is what stops the interleaved output.

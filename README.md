@@ -3,16 +3,18 @@
 Terminal launcher for standalone Windows games on Linux.
 
 hvrunner scans library folders for Windows executables and launches the selected
-game with the configured Proton build through `umu`, wrapped in MangoHud and
-optionally gamemode. It does not call game-folder scripts and it does not start
-the Steam client.
+game with the configured Proton build, wrapped in MangoHud and optionally
+gamemode. It does not call game-folder scripts and it does not start the Steam
+client.
 
-`umu` supplies the Steam Linux Runtime container that Proton needs for non-Steam
-games. On Arch Linux:
-
-```bash
-sudo pacman -S umu-launcher
-```
+Proton is invoked directly rather than through `umu`. umu assigns
+`STEAM_COMPAT_CLIENT_INSTALL_PATH` an empty string and never reassigns it, so
+Proton left `C:\Program Files (x86)\Steam` empty in every prefix while still
+writing `SteamPath` into the registry. Anything that resolved a Steam file
+through that key loaded nothing: a genuine `steam_api64.dll` reported Steam as
+not running, and OnlineFix's `SteamOverlay64.dll` failed
+`GameOverlayRenderer64.dll` with error 126. Running Proton directly passes the
+real path, populates the prefix, and still applies protonfixes.
 
 Standard library only, no Python runtime dependencies.
 
@@ -56,20 +58,20 @@ ACBF_VERIFY_DLSS=1 hvrunner --launch bfresynced
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| `enter` | launch the selected game |
-| `S` | launch the selected game as Spacewar, Steam app id 480 |
-| `j` / `k` | move down and up |
-| `f` | toggle favourite, favourites sort first |
-| `e` | edit, rename or delete the selected game |
-| `a` | add an executable, by path or with the browser |
-| `i` | install from a Windows installer |
-| `r` | rescan library folders |
-| `l` | open the log feed |
-| `s` | settings |
-| `?` | key reference |
-| `q` | quit |
+| Key       | Action                                                 |
+| --------- | ------------------------------------------------------ |
+| `enter`   | launch the selected game                               |
+| `S`       | launch the selected game as Spacewar, Steam app id 480 |
+| `j` / `k` | move down and up                                       |
+| `f`       | toggle favourite, favourites sort first                |
+| `e`       | edit, rename or delete the selected game               |
+| `a`       | add an executable, by path or with the browser         |
+| `i`       | install from a Windows installer                       |
+| `r`       | rescan library folders                                 |
+| `l`       | open the log feed                                      |
+| `s`       | settings                                               |
+| `?`       | key reference                                          |
+| `q`       | quit                                                   |
 
 In the log feed: `j`/`k` scroll, `PgUp`/`PgDn` by a screen, `g`/`G` jump to the
 ends, `f` toggles following new output, `n`/`p` switch between logs.
@@ -79,8 +81,8 @@ Proton's `lsteamclient` bridge, which this Proton build disables by default. It
 is what a game expecting a real `SteamAppId` wants. It does not give you the
 Steam overlay or Steam Input: both need the game launched by Steam itself, as a
 non-Steam shortcut. A game shipping its own Steam emulator keeps using that
-instead. To make it stick for one game, set its Steam app id in the entry
-editor with `e`; `S` stays a one off that ignores whatever is stored.
+instead. To make it stick for one game, set its Steam app id in the entry editor
+with `e`; `S` stays a one off that ignores whatever is stored.
 
 Anywhere a path is asked for, the field takes a value of any length and scrolls
 sideways: arrow keys and `^a`/`^e` move, `^w` rubs out one folder, `^u` clears.
@@ -104,22 +106,22 @@ twenty most recent logs are kept.
 `~/.config/hvrunner/config.json`, created by `--init-config` or on the first
 change made in the interface.
 
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `library_roots` | `["/mnt/data/games"]` | folders whose subdirectories are scanned |
-| `proton_path` | Proton GE in the Steam compat dir | Proton build to run |
-| `umu_path` | `/usr/bin/umu-run` | umu launcher |
-| `custom_prefix_name` | `.hvrunner-proton` | prefix folder, created inside the game folder |
-| `enforce_all_cpus` | `true` | keep game threads spread across every CPU |
-| `mangohud_config` | `""` (unset) | value for `MANGOHUD_CONFIG`; empty leaves your MangoHud.conf alone |
-| `shader_cache` | `true` | persistent vkd3d and DXVK pipeline cache |
-| `native_scale` | `false` | drop the output to scale 1 while a game runs |
-| `use_gamemode` | `true` | wrap the command in `gamemoderun` |
-| `use_mangohud` | `true` | wrap the command in `mangohud` and set `MANGOHUD=1` |
-| `enable_wayland` | `false` | set `PROTON_ENABLE_WAYLAND`, bypassing XWayland |
-| `extra_env` | `{}` | extra environment, applied last |
-| `favorites` | `[]` | favourite keys, managed by the interface |
-| `custom_games` | `[]` | executables added, installed or edited by hand, each with an optional `install_dir` naming where its Proton prefix lives |
+| Key                  | Default                           | Meaning                                                                                                                  |
+| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `library_roots`      | `["/mnt/data/games"]`             | folders whose subdirectories are scanned                                                                                 |
+| `proton_path`        | Proton GE in the Steam compat dir | Proton build to run                                                                                                      |
+| `steam_root`         | `~/.local/share/Steam`            | Steam install Proton copies `steamclient64.dll` and the overlay from                                                     |
+| `custom_prefix_name` | `.hvrunner-proton`                | prefix folder, created inside the game folder                                                                            |
+| `enforce_all_cpus`   | `true`                            | keep game threads spread across every CPU                                                                                |
+| `mangohud_config`    | `""` (unset)                      | value for `MANGOHUD_CONFIG`; empty leaves your MangoHud.conf alone                                                       |
+| `shader_cache`       | `true`                            | persistent vkd3d and DXVK pipeline cache                                                                                 |
+| `native_scale`       | `false`                           | drop the output to scale 1 while a game runs                                                                             |
+| `use_gamemode`       | `true`                            | wrap the command in `gamemoderun`                                                                                        |
+| `use_mangohud`       | `true`                            | wrap the command in `mangohud` and set `MANGOHUD=1`                                                                      |
+| `enable_wayland`     | `false`                           | set `PROTON_ENABLE_WAYLAND`, bypassing XWayland                                                                          |
+| `extra_env`          | `{}`                              | extra environment, applied last                                                                                          |
+| `favorites`          | `[]`                              | favourite keys, managed by the interface                                                                                 |
+| `custom_games`       | `[]`                              | executables added, installed or edited by hand, each with an optional `install_dir` naming where its Proton prefix lives |
 
 A wrong type is rejected with a message naming the key, rather than failing
 somewhere distant.
@@ -138,14 +140,15 @@ your own file. It also avoids the `full` preset, whose media player module logs
 an error on every poll when no MPRIS player is running.
 
 `shader_cache` sets `VKD3D_SHADER_CACHE_PATH` and `DXVK_STATE_CACHE_PATH` to a
-directory inside the prefix. umu only sets `STEAM_COMPAT_SHADER_PATH`, which
-vkd3d-proton does not read, so without this every launch recompiles pipelines and
-stutters as new shaders appear.
+directory inside the prefix. `STEAM_COMPAT_SHADER_PATH` alone is not enough,
+because vkd3d-proton does not read it, so without this every launch recompiles
+pipelines and stutters as new shaders appear.
 
 `native_scale` drops the output to scale 1 for the duration of a game and
 restores it afterwards. On a fractionally scaled output the compositor has to
 rescale a fullscreen game every frame, which rules out direct scanout. It is off
-by default because a mode change while a game holds the output can be disruptive.
+by default because a mode change while a game holds the output can be
+disruptive.
 
 Affinity enforcement keeps every game thread available to all CPUs while the
 game runs, so launchers and games cannot leave a restrictive mask in place.

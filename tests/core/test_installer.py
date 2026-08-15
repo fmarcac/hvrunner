@@ -26,7 +26,8 @@ def test_install_command_is_bare(tmp_path, config, stub_tools):
     source.write_text("stub")
     target = installer.prepare_target(tmp_path, "Witcher3")
     command, environment, prefix = installer.install_command(source, target, config)
-    assert command == [str(config["umu_path"]), str(source)]
+    proton = Path(config["proton_path"]) / "proton"
+    assert command == [str(proton), "waitforexitandrun", str(source)]
     assert "MANGOHUD" not in environment
     assert prefix == target / ".hvrunner-proton"
     assert environment["WINEPREFIX"] == str(prefix)

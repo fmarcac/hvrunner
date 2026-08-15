@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from . import prefix as prefix_module
 from .constants import CUSTOM_SOURCE, INSTALLER_PATTERN
 from .environment import build as build_environment
 from .launcher import alive, working_directory
 from .library import normalise, rank_executables
 from .logs import new_log_path
 from .models import Game, HvrunnerError
-from .planning import prefix_path, require_file, resolve_proton
+from .planning import prefix_path, require_file, resolve_proton, runner
 
 # drive_c holds the whole Windows install, so the walk has to be bounded and the
 # system trees skipped or every candidate would be a Microsoft binary.
@@ -46,24 +47,22 @@ def _as_game(source: Path, target: Path) -> Game:
 
 
 def install_command(source: Path, target: Path, config: dict[str, Any]) -> tuple[list[str], dict[str, str], Path]:
-    """The bare umu command that runs source inside target's prefix.
+    """The bare Proton command that runs source inside target's prefix.
 
     No MangoHud and no gamemode: a HUD over a setup wizard is noise, and
     gamemode's scheduling changes are meaningless for a process that exits in a
-    minute.
+    minute. The prefix is built exactly as a game's is, so an installer that
+    consults Steam finds the same populated client directory a game would.
     """
     proton = resolve_proton(config)
-    umu = require_file(Path(str(config["umu_path"])).expanduser(), "umu")
     require_file(source, "installer")
     game = _as_game(source, target)
     prefix = prefix_path(game, config)
-    try:
-        prefix.mkdir(parents=True, exist_ok=True)
-    except OSError as error:
-        raise HvrunnerError(f"cannot create prefix {prefix}: {error}") from error
+    prefix_module.create(prefix)
+    prefix_module.link_pfx(prefix)
     environment = build_environment(game, config, proton, prefix, prepare=True)
     environment.pop("MANGOHUD", None)
-    return [str(umu), str(source)], environment, prefix
+    return [*runner(proton), str(source)], environment, prefix
 
 
 def start(source: Path, target: Path, config: dict[str, Any]) -> InstallRun:

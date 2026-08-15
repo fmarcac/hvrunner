@@ -28,13 +28,6 @@ def fake_proton(tmp_path):
 
 
 @pytest.fixture
-def fake_umu(tmp_path):
-    umu = tmp_path / "umu-run"
-    umu.write_text("stub")
-    return umu
-
-
-@pytest.fixture
 def game_dir(tmp_path):
     folder = tmp_path / "BFResynced"
     folder.mkdir()
@@ -43,12 +36,11 @@ def game_dir(tmp_path):
 
 
 @pytest.fixture
-def config(fake_proton, fake_umu, tmp_path):
+def config(fake_proton, tmp_path):
     values = default_config()
     values.update(
         {
             "proton_path": str(fake_proton),
-            "umu_path": str(fake_umu),
             "library_roots": [str(tmp_path)],
         }
     )

@@ -178,5 +178,6 @@ def test_spacewar_launch_overrides_a_stored_id(config, state_home, stub_tools, m
     stored = Game("Game", CUSTOM_SOURCE, str(folder), str(executable), steam_appid="1234")
 
     launch(replace(stored, steam_appid=SPACEWAR_APPID), config)
-    assert recorded["env"]["GAMEID"] == "umu-480"
+    assert recorded["env"]["SteamAppId"] == SPACEWAR_APPID
+    assert recorded["env"]["STEAM_COMPAT_APP_ID"] == SPACEWAR_APPID
     assert recorded["env"]["PROTON_DISABLE_LSTEAMCLIENT"] == "0"

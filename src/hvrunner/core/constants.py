@@ -10,7 +10,6 @@ APP_NAME = "hvrunner"
 
 DEFAULT_COMPAT_ROOT = Path.home() / ".local/share/Steam"
 DEFAULT_PROTON = DEFAULT_COMPAT_ROOT / "compatibilitytools.d/Proton-GE11-1-LinUwUx/proton"
-DEFAULT_UMU = Path("/usr/bin/umu-run")
 DEFAULT_CUSTOM_ROOT = Path("/mnt/data/games")
 
 # Single source of truth for the source label. Game.key derives from it, so any

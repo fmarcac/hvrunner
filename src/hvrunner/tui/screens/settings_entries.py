@@ -99,11 +99,10 @@ def build(app: App) -> list[Setting]:
             lambda: "linux",
         ),
         Setting(
-            "umu runner",
-            "umu supplies the Steam Linux Runtime container Proton needs.",
-            lambda: str(config["umu_path"]),
-            # A plain file, not a .exe: umu-run has no extension at all.
-            _edit_path(app, "umu_path", "Path to umu-run", Want.FILE),
+            "Steam client folder",
+            "Proton copies steamclient64.dll and the overlay from here into every prefix.",
+            lambda: str(config["steam_root"]),
+            _edit_path(app, "steam_root", "Path to the Steam install", Want.DIRECTORY),
             lambda: "linux",
         ),
         Setting(
