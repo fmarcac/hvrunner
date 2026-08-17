@@ -115,7 +115,7 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     # and flushes it on exit, so anything written while the game owns the prefix
     # is discarded the moment it quits. A prefix Proton has not built yet has no
     # system.reg to read, so nothing runs and the launch is not made to wait.
-    repairs = prefix_module.repair(prepared.prefix, resolve_proton(config))
+    repairs = prefix_module.repair(prepared.prefix, resolve_proton(config, game))
     log_path = new_log_path(game)
     restore_monitor = drop_to_native_scale(config)
     try:

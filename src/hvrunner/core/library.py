@@ -146,6 +146,7 @@ def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str],
         seen.add(str(executable))
         claimed.add(str(install_dir))
         steam_appid = str(entry.get("steam_appid", "")).strip()
+        proton_path = str(entry.get("proton_path", "")).strip()
         raw_args = entry.get("launch_args", [])
         arguments = tuple(str(arg) for arg in raw_args if isinstance(arg, str)) if isinstance(raw_args, list) else ()
         games.append(
@@ -155,6 +156,7 @@ def _declared_games(config: dict[str, Any], favorites: set[str], seen: set[str],
                 str(install_dir),
                 str(executable),
                 steam_appid=steam_appid,
+                proton_path=proton_path,
                 launch_args=arguments,
                 favorite=favorite_key(executable) in favorites,
             )

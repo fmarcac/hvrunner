@@ -130,8 +130,17 @@ def build(screen: EntryScreen) -> list[Field]:
             _edit_path(screen, "install_dir", "Folder holding the prefix", Want.DIRECTORY),
         ),
         Field(
+            "Proton build",
+            "A Proton build for this game alone, overriding the configured one. "
+            "Wine features differ between builds: a game whose plugin wants a "
+            "WinRT class one build does not implement needs another. Blank uses "
+            "the configured build.",
+            lambda: str(entry.get("proton_path", "")) or "configured",
+            _edit_path(screen, "proton_path", "Path to a Proton build", Want.DIRECTORY),
+        ),
+        Field(
             "Launch arguments",
-            "Passed to the executable after the umu command.",
+            "Passed to the executable after the Proton command.",
             lambda: " ".join(str(item) for item in entry.get("launch_args", [])) or "none",
             _edit_args(screen),
         ),

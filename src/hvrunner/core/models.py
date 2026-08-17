@@ -18,6 +18,10 @@ class Game:
     # identity: key must not consult it, or every game sharing an id would
     # collide on one favourite key.
     steam_appid: str = ""
+    # A Proton build for this game alone. Wine features differ between
+    # builds, and a game needing one the configured build lacks has nowhere
+    # else to say so. Empty means the configured build.
+    proton_path: str = ""
     launch_args: tuple[str, ...] = ()
     favorite: bool = False
 

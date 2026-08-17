@@ -15,7 +15,7 @@ from .models import Game, HvrunnerError
 # "run", not "waitforexitandrun". The waiting verb blocks until every process in
 # the prefix is gone and says nothing at all while it waits, so launching into a
 # prefix that already held a game hung forever and read as a failed launch.
-# prefix.busy answers that question directly instead, before anything starts.
+# launcher.launch asks the process table instead, before anything starts.
 PROTON_VERB = "run"
 
 
@@ -36,8 +36,16 @@ def require_file(path: Path, label: str) -> Path:
     return path
 
 
-def resolve_proton(config: dict[str, Any]) -> Path:
-    configured = Path(str(config["proton_path"])).expanduser()
+def resolve_proton(config: dict[str, Any], game: Game | None = None) -> Path:
+    """The Proton build a game runs with.
+
+    A game may name its own. Wine features differ between builds, and a game
+    that needs one the configured build lacks would otherwise have nowhere to
+    say so: Dagger Directive's C++/WinRT plugin wants a
+    Windows.System.DispatcherQueue that not every build implements.
+    """
+    declared = str(game.proton_path) if game else ""
+    configured = Path(declared or str(config["proton_path"])).expanduser()
     proton = configured.parent if configured.name == "proton" else configured
     if not (proton / "proton").is_file() or not (proton / "toolmanifest.vdf").is_file():
         raise HvrunnerError(f"Proton runtime is unavailable: {proton}")
@@ -88,7 +96,7 @@ def plan(game: Game, config: dict[str, Any], *, prepare: bool = False) -> Launch
     into existence and given its layout, because a launch must never be the
     thing that discovers the prefix was missing.
     """
-    proton = resolve_proton(config)
+    proton = resolve_proton(config, game)
     executable = require_file(Path(game.executable), "game executable")
 
     prefix = prefix_path(game, config)

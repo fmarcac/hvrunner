@@ -169,3 +169,25 @@ def test_proton_is_run_not_waited_on(game_factory, config, stub_tools):
     command, _ = build_command(game_factory("Plain.exe"), config)
     assert "run" in command
     assert "waitforexitandrun" not in command
+
+
+def test_a_game_can_name_its_own_proton(config, stub_tools, tmp_path):
+    """Wine features differ between builds, and a game whose plugin wants a
+    WinRT class the configured build lacks has nowhere else to say so."""
+    other = tmp_path / "OtherProton"
+    other.mkdir()
+    (other / "proton").write_text("stub")
+    (other / "toolmanifest.vdf").write_text("stub")
+    folder = tmp_path / "Picky"
+    folder.mkdir()
+    executable = folder / "Picky.exe"
+    executable.write_text("stub")
+    game = Game("Picky", "Custom", str(folder), str(executable), proton_path=str(other))
+    command, env = build_command(game, config)
+    assert env["PROTONPATH"] == str(other)
+    assert command[-3] == str(other / "proton")
+
+
+def test_without_one_the_configured_build_is_used(game_factory, config, stub_tools, fake_proton):
+    _, env = build_command(game_factory("Plain.exe"), config)
+    assert env["PROTONPATH"] == str(fake_proton)
