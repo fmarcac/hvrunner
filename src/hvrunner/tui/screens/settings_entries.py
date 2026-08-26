@@ -7,24 +7,15 @@ screen knows the layout.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...core.browsing import Want
 from ...core.config import expand
+from ..options import Option
 
 if TYPE_CHECKING:
     from ..app import App
-
-
-@dataclass
-class Setting:
-    label: str
-    detail: str
-    value: Callable[[], str]
-    activate: Callable[[], None]
-    role: Callable[[], str]
 
 
 def _toggle(app: App, key: str, default: bool) -> Callable[[], None]:
@@ -88,38 +79,38 @@ def _remove_root(app: App) -> Callable[[], None]:
     return action
 
 
-def build(app: App) -> list[Setting]:
+def build(app: App) -> list[Option]:
     config = app.config
     return [
-        Setting(
+        Option(
             "Proton build",
             "The Proton runtime every game is launched with.",
             lambda: str(config["proton_path"]),
             _edit_path(app, "proton_path", "Path to a Proton build", Want.DIRECTORY),
             lambda: "linux",
         ),
-        Setting(
+        Option(
             "Steam client folder",
             "Proton copies steamclient64.dll and the overlay from here into every prefix.",
             lambda: str(config["steam_root"]),
             _edit_path(app, "steam_root", "Path to the Steam install", Want.DIRECTORY),
             lambda: "linux",
         ),
-        Setting(
+        Option(
             "Library folders",
             "Each subdirectory of these folders is scanned for an executable.",
             lambda: f"{len(config['library_roots'])} folders",
             _add_root(app),
             lambda: "text",
         ),
-        Setting(
+        Option(
             "Stop scanning a folder",
             "Remove a folder from the scan list.",
             lambda: ", ".join(str(root) for root in config["library_roots"]) or "none",
             _remove_root(app),
             lambda: "text",
         ),
-        Setting(
+        Option(
             "Shader cache",
             "Keeps compiled pipelines between runs. Without it every launch "
             "recompiles shaders as they appear, which shows up as frametime spikes.",
@@ -127,7 +118,7 @@ def build(app: App) -> list[Setting]:
             _toggle(app, "shader_cache", True),
             _role(app, "shader_cache", True),
         ),
-        Setting(
+        Option(
             "Native scale while playing",
             "Drops the output to scale 1 for the game and restores it afterwards. "
             "A scaled output makes the compositor rescale every frame, which "
@@ -136,14 +127,14 @@ def build(app: App) -> list[Setting]:
             _toggle(app, "native_scale", False),
             _role(app, "native_scale", False),
         ),
-        Setting(
+        Option(
             "Presentation",
             "Native Wayland skips XWayland. Frame pacing differs between the two.",
             _state(app, "enable_wayland", False, "native Wayland", "XWayland"),
             _toggle(app, "enable_wayland", False),
             _role(app, "enable_wayland", False),
         ),
-        Setting(
+        Option(
             "MangoHud overlay",
             "Wraps the command in mangohud and sets MANGOHUD=1. Off removes both. "
             "A machine without MangoHud installed launches without it either way.",
@@ -151,14 +142,14 @@ def build(app: App) -> list[Setting]:
             _toggle(app, "use_mangohud", True),
             _role(app, "use_mangohud", True),
         ),
-        Setting(
+        Option(
             "gamemode",
             "Applies gamemode's scheduling changes. Off silences its dlopen warnings.",
             _state(app, "use_gamemode", True, "on", "off"),
             _toggle(app, "use_gamemode", True),
             _role(app, "use_gamemode", True),
         ),
-        Setting(
+        Option(
             "Spread across all CPUs",
             "Keeps game threads on every core, undoing masks a game sets itself.",
             _state(app, "enforce_all_cpus", True, "on", "off"),

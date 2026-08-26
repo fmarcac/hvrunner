@@ -1,60 +1,38 @@
-"""Settings screen."""
+"""Settings screen: layout only. What the settings are lives next door."""
 
 from __future__ import annotations
 
-from .. import keys, layout
-from ..text import fit, letterspace, shorten_path, wrap
 from ..widgets import Rect
-from .base import Screen
+from .base import ListDetailScreen
 from .settings_entries import build
 
 KEYS = "j k move   enter change   esc back"
 
 
-class SettingsScreen(Screen):
+class SettingsScreen(ListDetailScreen):
+    title = "SETTINGS"
+    footer = KEYS
+
     def __init__(self, app):
         super().__init__(app)
-        self.cursor = 0
         self.settings = build(app)
 
-    def draw(self) -> Rect:
-        inner = self.paint.frame(letterspace("SETTINGS"), str(self.app.path), KEYS)
-        if inner.height < 4:
-            return inner
+    def labels(self) -> list[str]:
+        return [setting.label for setting in self.settings]
 
-        panes = layout.split(inner, min_list=22, max_list=34)
-        self.paint.rows(panes.items, [setting.label for setting in self.settings], self.cursor)
+    def meta(self) -> str:
+        return str(self.app.path)
 
-        if panes.split and panes.detail and panes.divider_x is not None:
-            self.paint.divider(panes.divider_x, inner.top, inner.height - 1)
-            self._draw_detail(panes.detail)
-
-        self.paint.status(inner, self.app.status)
-        return inner
-
-    def _draw_detail(self, area: Rect) -> None:
+    def draw_detail(self, area: Rect) -> None:
         chosen = self.settings[self.cursor]
-        self.paint.text(area.top, area.left, fit(chosen.label, area.width), area.width, "text", bold=True)
-        self.paint.text(
-            area.top + 2,
-            area.left,
-            shorten_path(chosen.value(), area.width, self.paint.glyph("ellipsis")),
-            area.width,
-            chosen.role(),
-        )
-        self.paint.section(area.top + 4, area.left, area.width, "about")
-        for offset, line in enumerate(wrap(chosen.detail, area.width)):
-            if area.top + 5 + offset > area.bottom:
-                break
-            self.paint.text(area.top + 5 + offset, area.left, line, area.width, "label")
+        self.paint.detail(area, chosen.label, chosen.value(), chosen.role(), chosen.detail)
 
-    def handle(self, key: int) -> bool:
-        if keys.is_leave(key):
-            return False
-        if keys.is_down(key):
-            self.cursor = (self.cursor + 1) % len(self.settings)
-        elif keys.is_up(key):
-            self.cursor = (self.cursor - 1) % len(self.settings)
-        elif keys.is_confirm(key) or key == ord(" "):
-            self.settings[self.cursor].activate()
+    def confirm(self) -> bool:
+        self.settings[self.cursor].activate()
         return True
+
+    def extra(self, key: int) -> bool | None:
+        # Space toggles too, because most of these are booleans.
+        if key == ord(" "):
+            return self.confirm()
+        return None

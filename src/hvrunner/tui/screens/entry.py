@@ -10,10 +10,8 @@ from typing import TYPE_CHECKING
 
 from ...core.entries import draft, find, remove, update
 from ...core.models import Game
-from .. import keys, layout
-from ..text import fit, letterspace, shorten_path, wrap
 from ..widgets import Rect
-from .base import Screen
+from .base import ListDetailScreen
 from .entry_fields import build
 
 if TYPE_CHECKING:
@@ -22,7 +20,10 @@ if TYPE_CHECKING:
 KEYS = "j k move   enter change   d delete   esc back"
 
 
-class EntryScreen(Screen):
+class EntryScreen(ListDetailScreen):
+    title = "ENTRY"
+    footer = KEYS
+
     def __init__(self, app: App, game: Game):
         super().__init__(app)
         self.game = game
@@ -31,7 +32,6 @@ class EntryScreen(Screen):
         self.stored = stored is not None
         # A copy, so nothing is written until a field actually changes.
         self.entry = dict(stored) if stored is not None else draft(game)
-        self.cursor = 0
         self.dirty = False
         self.fields = build(self)
 
@@ -41,34 +41,30 @@ class EntryScreen(Screen):
         self.entry[key] = value
         self.dirty = True
 
-    def draw(self) -> Rect:
-        subtitle = "custom entry" if self.stored else "scanned, not yet saved"
-        inner = self.paint.frame(letterspace("ENTRY"), subtitle, KEYS)
-        if inner.height < 4:
-            return inner
-        panes = layout.split(inner, min_list=22, max_list=34)
-        self.paint.rows(panes.items, [field.label for field in self.fields], self.cursor)
-        if panes.split and panes.detail and panes.divider_x is not None:
-            self.paint.divider(panes.divider_x, inner.top, inner.height - 1)
-            self._draw_detail(panes.detail)
-        self.paint.status(inner, self.app.status)
-        return inner
+    def labels(self) -> list[str]:
+        return [field.label for field in self.fields]
 
-    def _draw_detail(self, area: Rect) -> None:
+    def meta(self) -> str:
+        return "custom entry" if self.stored else "scanned, not yet saved"
+
+    def draw_detail(self, area: Rect) -> None:
         chosen = self.fields[self.cursor]
-        self.paint.text(area.top, area.left, fit(chosen.label, area.width), area.width, "text", bold=True)
-        self.paint.text(
-            area.top + 2,
-            area.left,
-            shorten_path(chosen.value(), area.width, self.paint.glyph("ellipsis")),
-            area.width,
-            "text",
-        )
-        self.paint.section(area.top + 4, area.left, area.width, "about")
-        for offset, line in enumerate(wrap(chosen.detail, area.width)):
-            if area.top + 5 + offset > area.bottom:
-                break
-            self.paint.text(area.top + 5 + offset, area.left, line, area.width, "label")
+        self.paint.detail(area, chosen.label, chosen.value(), chosen.role(), chosen.detail)
+
+    def confirm(self) -> bool:
+        self.fields[self.cursor].activate()
+        return True
+
+    def leave(self) -> bool:
+        self._commit()
+        return False
+
+    def extra(self, key: int) -> bool | None:
+        if key == ord("d"):
+            # Staying put on a refusal keeps any pending edits, and puts the
+            # explanation on the screen the user is actually looking at.
+            return not self._delete()
+        return None
 
     def _delete(self) -> bool:
         """True when the entry went away, which is when the screen should close."""
@@ -88,19 +84,3 @@ class EntryScreen(Screen):
         self.app.save()
         self.app.rescan()
         self.app.status = f"Saved {self.entry.get('name', self.game.name)}"
-
-    def handle(self, key: int) -> bool:
-        if keys.is_leave(key):
-            self._commit()
-            return False
-        if keys.is_down(key):
-            self.cursor = (self.cursor + 1) % len(self.fields)
-        elif keys.is_up(key):
-            self.cursor = (self.cursor - 1) % len(self.fields)
-        elif keys.is_confirm(key):
-            self.fields[self.cursor].activate()
-        elif key == ord("d"):
-            # Staying put on a refusal keeps any pending edits, and puts the
-            # explanation on the screen the user is actually looking at.
-            return not self._delete()
-        return True

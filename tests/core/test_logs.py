@@ -183,3 +183,35 @@ def test_reader_decodes_invalid_utf8(tmp_path):
     reader.poll()
     assert reader.lines[0] == "good"
     assert len(reader.lines) == 2
+
+
+def test_lines_are_classified_as_they_are_read(tmp_path):
+    """Classified once, not on every draw: the feed redraws several times a second."""
+    path = tmp_path / "run.log"
+    path.write_text("$ /usr/bin/proton run game.exe\nlibgamemode.so: cannot open\nUnhandled page fault\nplain\n")
+    reader = LogReader(path)
+    reader.poll()
+    assert reader.kinds == ["command", "noise", "error", "plain"]
+    assert len(reader.kinds) == len(reader.lines)
+
+
+def test_classifications_survive_an_incremental_read(tmp_path):
+    path = tmp_path / "run.log"
+    path.write_text("plain\n")
+    reader = LogReader(path)
+    reader.poll()
+    with path.open("a") as handle:
+        handle.write("something failed\n")
+    reader.poll()
+    assert reader.kinds == ["plain", "error"]
+
+
+def test_a_truncated_log_drops_its_classifications_too(tmp_path):
+    path = tmp_path / "run.log"
+    path.write_text("something failed\n")
+    reader = LogReader(path)
+    reader.poll()
+    path.write_text("plain\n")
+    reader.poll()
+    assert reader.lines == ["plain"]
+    assert reader.kinds == ["plain"]

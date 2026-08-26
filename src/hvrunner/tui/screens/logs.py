@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...core.logs import LogReader, classify, recent_logs
+from ...core.logs import LogReader, recent_logs
 from .. import keys
 from ..text import fit
 from ..widgets import Rect
@@ -66,13 +66,17 @@ class LogScreen(Screen):
         text_left = inner.left + gutter + 1
         text_width = max(0, inner.right - text_left)
 
-        visible = self.lines[self.offset : self.offset + self.rows]
+        window = slice(self.offset, self.offset + self.rows)
+        visible = self.lines[window]
+        # Classified once, when the line was read. It never changes afterwards
+        # and this redraws several times a second while a game is running.
+        kinds = self.reader.kinds[window]
         if not visible:
             self.paint.text(inner.top, text_left, "Waiting for output.", text_width, "label")
         for offset, line in enumerate(visible):
             row = inner.top + offset
             self.paint.text(row, inner.left, str(self.offset + offset + 1).rjust(gutter), gutter, "rule")
-            role, emphasis = ROLES[classify(line)]
+            role, emphasis = ROLES[kinds[offset]]
             self.paint.text(row, text_left, fit(line, text_width), text_width, role, **emphasis)
         return inner
 

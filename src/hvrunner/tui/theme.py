@@ -5,8 +5,8 @@ two read as one tool.
 
 Colour carries meaning rather than decoration. hvrunner runs Windows binaries on
 Linux, and the interface says which side of that layer a thing belongs to:
-LINUX for the Proton and umu side, WINDOWS for the executable and its DXVK and
-NVAPI settings.
+LINUX for the Proton side and for a native build, WINDOWS for a Windows
+executable and its DXVK and NVAPI settings.
 """
 
 from __future__ import annotations

@@ -6,9 +6,13 @@ browse starts from, can be tested without a terminal.
 
 from __future__ import annotations
 
+import os
+import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+
+from .constants import WINDOWS_SUFFIXES
 
 PARENT_NAME = ".."
 
@@ -16,13 +20,13 @@ PARENT_NAME = ".."
 class Want(Enum):
     """What the caller is asking the user to pick.
 
-    FILE rather than EXECUTABLE exists because not everything chosen here is a
-    Windows binary: umu-run has no extension at all.
+    EXECUTABLE means anything that can be launched, not only a Windows binary:
+    a native Linux game's launcher has no extension at all and is recognised by
+    its executable bit.
     """
 
     DIRECTORY = "directory"
     EXECUTABLE = "executable"
-    FILE = "file"
 
 
 @dataclass(frozen=True)
@@ -39,19 +43,37 @@ class Entry:
         return f"{self.path.name}/" if self.is_dir else self.path.name
 
 
-def _size(path: Path) -> int:
+def windows_program(path: Path) -> bool:
+    """Whether a path is something Proton can be asked to run.
+
+    An installer has to be one. A native binary handed to Proton would be an ELF
+    file passed to Wine, which cannot work and fails without saying why.
+    """
+    return path.suffix.casefold() in WINDOWS_SUFFIXES
+
+
+def runnable(name: str, mode: int) -> bool:
+    """Whether a file is something that could be launched.
+
+    A Windows program by extension, or any regular file with the executable
+    bit, which is what a native Linux build's launcher has instead of a suffix.
+    """
+    dot = name.rfind(".")
+    if dot > 0 and name[dot:].casefold() in WINDOWS_SUFFIXES:
+        return True
+    return stat.S_ISREG(mode) and bool(mode & 0o111)
+
+
+def launchable(path: Path) -> bool:
+    """Whether a path names a file that could be launched.
+
+    A Windows program by extension, or any file with the executable bit, which
+    is what a native Linux build's launcher has instead of an extension.
+    """
     try:
-        return path.stat().st_size
+        return path.is_file() and runnable(path.name, path.stat().st_mode)
     except OSError:
-        return 0
-
-
-def _wanted(path: Path, want: Want) -> bool:
-    if want is Want.DIRECTORY:
         return False
-    if want is Want.EXECUTABLE:
-        return path.suffix.casefold() == ".exe"
-    return True
 
 
 def listing(directory: Path, want: Want) -> list[Entry]:
@@ -59,12 +81,16 @@ def listing(directory: Path, want: Want) -> list[Entry]:
 
     Hidden entries are skipped for the reason the library scan skips them: the
     Proton prefix lives inside the game folder and holds a whole Windows tree.
+
+    os.scandir rather than iterdir, so telling a directory from a file costs
+    nothing and the one stat a file does need also answers its size.
     """
     entries: list[Entry] = []
     if directory.parent != directory:
         entries.append(Entry(directory.parent, is_dir=True, is_parent=True))
     try:
-        children = sorted(directory.iterdir(), key=lambda path: path.name.casefold())
+        with os.scandir(directory) as scanner:
+            children = sorted(scanner, key=lambda child: child.name.casefold())
     except OSError:
         # An unreadable directory still has to offer the way back out of it.
         return entries
@@ -75,9 +101,13 @@ def listing(directory: Path, want: Want) -> list[Entry]:
             continue
         try:
             if child.is_dir():
-                directories.append(Entry(child, is_dir=True))
-            elif _wanted(child, want):
-                files.append(Entry(child, is_dir=False, size=_size(child)))
+                directories.append(Entry(Path(child.path), is_dir=True))
+                continue
+            if want is Want.DIRECTORY:
+                continue
+            stats = child.stat()
+            if runnable(child.name, stats.st_mode):
+                files.append(Entry(Path(child.path), is_dir=False, size=stats.st_size))
         except OSError:
             continue
     return [*entries, *directories, *files]

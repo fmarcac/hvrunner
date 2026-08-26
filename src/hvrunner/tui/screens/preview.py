@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ...core.constants import WINDOWS_SUFFIXES
 from ...core.environment import WINDOWS_SIDE_ENV
 from ...core.models import Game, HvrunnerError
 from ...core.planning import plan
@@ -30,7 +31,11 @@ def draw(paint: Painter, area: Rect, game: Game, config: dict) -> None:
         paint.text(row + 1, area.left, fit(str(error), area.width), area.width, "error")
         return
 
-    if prepared.prefix_ready:
+    if prepared.prefix is None:
+        # No Wine, so no prefix to be cold. Worth saying, because everything
+        # else on this pane is about the compatibility layer.
+        paint.text(row, area.left, "native, runs without Proton", area.width, "ok")
+    elif prepared.prefix_ready:
         paint.text(row, area.left, "prefix ready", area.width, "ok")
     else:
         paint.text(row, area.left, "first run, expect a long start", area.width, "warn")
@@ -47,13 +52,13 @@ def _draw_command(paint: Painter, area: Rect, row: int, command: list[str]) -> i
     paint.section(row, area.left, area.width, "command")
     row += 1
     # Each wrapper indents, so the layering is visible: gamemode wraps MangoHud
-    # wraps umu wraps the Windows binary.
+    # wraps Proton wraps the Windows binary.
     for depth, part in enumerate(command):
         if row > area.bottom - 1:
             break
         indent = min(depth * 2, max(0, area.width - 8))
         name = Path(part).name if part.startswith("/") else part
-        role = "windows" if name.casefold().endswith(".exe") else "linux"
+        role = "windows" if Path(name).suffix.casefold() in WINDOWS_SUFFIXES else "linux"
         paint.text(row, area.left + indent, fit(name, area.width - indent), area.width - indent, role)
         row += 1
     return row + 1

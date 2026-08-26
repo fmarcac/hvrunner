@@ -29,8 +29,22 @@ def test_executable_mode_lists_directories_and_exes(tree):
     assert names(listing(tree, Want.EXECUTABLE)) == [PARENT_NAME, "Hitman/", "HMA.exe"]
 
 
-def test_file_mode_lists_everything_not_hidden(tree):
-    assert names(listing(tree, Want.FILE)) == [PARENT_NAME, "Hitman/", "HMA.exe", "readme.txt"]
+def test_a_plain_file_is_not_offered_as_something_to_launch(tree):
+    """readme.txt is neither a Windows program nor executable."""
+    assert "readme.txt" not in names(listing(tree, Want.EXECUTABLE))
+
+
+def test_a_native_binary_is_offered_without_an_extension(tree):
+    """A Linux build's launcher has the executable bit instead of a suffix."""
+    launcher = tree / "start"
+    launcher.write_text("#!/bin/sh\n")
+    launcher.chmod(0o755)
+    assert "start" in names(listing(tree, Want.EXECUTABLE))
+
+
+def test_a_batch_file_is_offered(tree):
+    (tree / "play.bat").write_text("stub")
+    assert "play.bat" in names(listing(tree, Want.EXECUTABLE))
 
 
 def test_hidden_entries_are_skipped(tree):
@@ -51,7 +65,7 @@ def test_unreadable_directory_still_offers_the_way_out(tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir(mode=0o000)
     try:
-        assert names(listing(locked, Want.FILE)) == [PARENT_NAME]
+        assert names(listing(locked, Want.EXECUTABLE)) == [PARENT_NAME]
     finally:
         locked.chmod(0o755)
 

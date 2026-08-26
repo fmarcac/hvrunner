@@ -31,6 +31,13 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RET", "PTH"]
 # The formatter owns line length, so the linter does not also police it.
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# The affinity watcher walks every process on the machine four times a second
+# while a game runs, so it works in os.scandir, open and os.readlink on purpose:
+# the pathlib forms allocate a Path per process and cost three times as much.
+# Measured at 17 ms a pass before and under 5 after.
+"src/hvrunner/core/affinity.py" = ["PTH"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"

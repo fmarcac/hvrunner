@@ -15,7 +15,7 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("j k", "move the cursor"),
             ("f", "favourite, which sorts it to the top"),
             ("e", "edit, rename or delete the selected game"),
-            ("a", "add an executable by path"),
+            ("a", "add an executable by path, Windows or native"),
             ("i", "install from a Windows installer"),
             ("r", "rescan library folders"),
             ("l", "open the log feed"),
@@ -56,7 +56,7 @@ SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "colour",
         [
-            ("cyan", "the Linux side: Proton, umu, prefix"),
+            ("cyan", "the Linux side: Proton, the prefix, native binaries"),
             ("purple", "the Windows side: the executable, DXVK, NVAPI"),
             ("grey", "log output already known to be harmless"),
         ],

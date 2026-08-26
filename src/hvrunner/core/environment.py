@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from . import electron
 from .constants import DEFAULT_COMPAT_ROOT, DEFAULT_WINEDEBUG, SPACEWAR_APPID
 from .models import Game, HvrunnerError
 
@@ -20,6 +21,7 @@ NOTABLE_ENV = (
     "VKD3D_SHADER_CACHE_PATH",
     "MANGOHUD_CONFIG",
     "PROTON_ENABLE_WAYLAND",
+    electron.OZONE_HINT,
     "DXVK_ENABLE_NVAPI",
     "DXVK_NVAPI_SET_NGX_DEBUG_OPTIONS",
     "NVPRESENT_ENABLE_SMOOTH_MOTION",
@@ -53,6 +55,9 @@ def steam_root(config: dict[str, Any]) -> Path:
 # shapes, no walk: plan() runs on every cursor move to draw the preview.
 APPID_FILES = (
     "steam_appid.txt",
+    # Goldberg's own layout, which is not under a Unity _Data folder. A repack
+    # built around ColdClientLoader keeps its id here and nowhere else.
+    "steam_settings/steam_appid.txt",
     "*_Data/Plugins/x86_64/steam_settings/steam_appid.txt",
     "*_Data/Plugins/x86_64/steam_appid.txt",
     "*_Data/Plugins/steam_settings/steam_appid.txt",
@@ -60,10 +65,15 @@ APPID_FILES = (
 
 
 # A bundled fix presents one id to Steam while telling the game it is another.
-# OnlineFix spells it FakeAppId, unsteam fake_app_id; both mean the same thing,
-# and it is the one that has to reach the environment. Reading the real id
-# instead is how Approximately Up got 3904850 when its fix expected 480.
-FIX_FILES = ("OnlineFix.ini", "unsteam.ini")
+# OnlineFix and FreeTP's SteamFix spell it FakeAppId, unsteam fake_app_id; all
+# three mean the same thing, and it is the one that has to reach the
+# environment. Reading the real id instead is how Approximately Up got 3904850
+# when its fix expected 480.
+#
+# SteamFix.ini sits beside RealAppId in the same file, so the key matters more
+# than the filename: taking the first number in the file would give the id the
+# game believes it has rather than the one Steam has to be shown.
+FIX_FILES = ("OnlineFix.ini", "SteamFix.ini", "unsteam.ini")
 FIX_KEY = "fakeappid"
 
 
@@ -134,7 +144,13 @@ def application_id(game: Game) -> str:
 
 
 def game_environment(executable: Path, install_dir: str, prepare: bool) -> dict[str, str]:
-    """Per title workarounds, keyed off the executable name."""
+    """Per title workarounds, keyed off the executable name.
+
+    This is not where a new workaround belongs. An entry carries its own env,
+    which is applied after this and wins over it, so a game needing one is a
+    change to the library rather than to the package. What is left here is the
+    measured Black Flag setup, kept because it is relied on and tested.
+    """
     # Prefix match rather than equality: the folder also ships
     # ACBlackFlag_Plus.exe, and an exact comparison would silently drop this
     # environment for that variant.
@@ -229,4 +245,24 @@ def build(game: Game, config: dict[str, Any], proton: Path, prefix: Path, *, pre
 
     environment.update(game_environment(Path(game.executable), game.install_dir, prepare))
     _overlay(environment, config)
+    # Last, so the entry's own environment wins over the global extra_env and
+    # over every default above. This is what keeps a new game needing a DXVK or
+    # NVAPI workaround from meaning a change to this file.
+    environment.update(game.env)
+    return environment
+
+
+def native(game: Game, config: dict[str, Any]) -> dict[str, str]:
+    """The environment a native Linux game is launched with.
+
+    None of the STEAM_COMPAT names, no prefix and no WINEDEBUG, because there is
+    no Wine in this launch. The overlay and the user's own entries still apply:
+    those are about the machine rather than the compatibility layer.
+    """
+    environment = os.environ.copy()
+    executable = Path(game.executable)
+    if electron.is_electron(executable):
+        environment.update(electron.environment(config))
+    _overlay(environment, config)
+    environment.update(game.env)
     return environment

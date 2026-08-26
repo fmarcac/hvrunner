@@ -17,6 +17,20 @@ DEFAULT_CUSTOM_ROOT = Path("/mnt/data/games")
 # stop matching after a rescan.
 CUSTOM_SOURCE = "Custom"
 
+# What Proton is asked to run. Anything else is a native Linux program and is
+# started directly, because putting Proton in front of an ELF binary is how a
+# Linux port becomes unlaunchable.
+#
+# .bat and .cmd need cmd.exe in front of them and .msi needs msiexec: Wine will
+# not infer either. planning.runner is where that is decided.
+WINDOWS_SUFFIXES = frozenset({".exe", ".bat", ".cmd", ".msi"})
+SCRIPT_SUFFIXES = frozenset({".bat", ".cmd"})
+INSTALLER_SUFFIXES = frozenset({".msi"})
+
+# Preferred order when a folder offers more than one. A real game ships an .exe;
+# the rest are launchers and setup wrappers around one.
+SUFFIX_RANK = {".exe": 0, ".cmd": 1, ".bat": 1, ".msi": 2}
+
 # Spacewar, the Steam application anything that is not a Steam game is
 # conventionally run as. It gives a game a real SteamAppId without pretending
 # to be a title the user does not own.
@@ -49,10 +63,24 @@ RESTORE_MONITOR_ENV = "HVRUNNER_RESTORE_MONITOR"
 ENFORCE_AFFINITY_ENV = "HVRUNNER_ENFORCE_AFFINITY"
 
 # How deep to look for a game executable. Unreal-style layouts bury the binary
-# in Binaries/Win64.
-EXE_SEARCH_DEPTH = 3
+# in Binaries/Win64, and a repack adds a folder above that, which is what the
+# fourth level is for. The scan reads directory entries without stat'ing them,
+# so the extra level costs a scandir per folder rather than a walk of stats.
+EXE_SEARCH_DEPTH = 4
 
-INSTALLER_PATTERN = re.compile(r"(unins|setup|install|crash|redist|vcredist|dxsetup|touchup)", re.I)
+# A native Linux game keeps its launcher at the top, so this stays shallow: it
+# is a fallback for folders holding no Windows program at all, and the deeper it
+# goes the more of the game's own tooling it would offer as candidates.
+NATIVE_SEARCH_DEPTH = 2
+
+# Names that are not the game. Matched anywhere in the filename, which is safe
+# because select_executable falls back to the unfiltered list when everything
+# would be filtered out.
+INSTALLER_PATTERN = re.compile(
+    r"(unins|setup|install|crash|redist|vcredist|dxsetup|touchup|prereq"
+    r"|easyanticheat|battleye|dotnet|directx|oalinst|dxwebsetup|benchmark)",
+    re.I,
+)
 
 # affinity watcher timings. The startup window must survive first-launch prefix
 # creation and shader compilation; the absence window must survive a game that
@@ -60,6 +88,12 @@ INSTALLER_PATTERN = re.compile(r"(unins|setup|install|crash|redist|vcredist|dxse
 AFFINITY_STARTUP_TIMEOUT = 600.0
 AFFINITY_ABSENCE_TIMEOUT = 30.0
 AFFINITY_POLL_INTERVAL = 0.25
+
+# Once the game has been found, the watcher is only there to undo a mask the
+# game sets on itself later and to notice the exit. Neither needs a quarter of a
+# second: the scan walks every process on the machine, and at 4 Hz that was
+# costing several percent of a core for as long as the game ran.
+AFFINITY_SETTLED_INTERVAL = 2.0
 
 # Linux truncates /proc/<pid>/comm to 15 characters plus a NUL.
 COMM_MAX_LENGTH = 15
@@ -75,6 +109,13 @@ LOG_TAIL_BYTES = 256 * 1024
 # cannot stop them. Capping the live file would mean draining a pipe in a
 # process that outlives the interface, which the supervisor does not do today.
 LOG_BUDGET_BYTES = 64 * 1024 * 1024
+
+# Long enough for a cold prefix update, short enough that a wedged wineserver
+# cannot hold a launch open forever.
+REGISTER_TIMEOUT = 120.0
+
+# hyprctl answers immediately or not at all.
+HYPRCTL_TIMEOUT = 5.0
 
 
 def state_dir() -> Path:

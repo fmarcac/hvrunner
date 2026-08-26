@@ -12,7 +12,7 @@ from typing import Any
 
 from . import display
 from . import prefix as prefix_module
-from .affinity import matching_game_pids, watcher_command
+from .affinity import game_roots, matching_game_pids, watcher_command
 from .constants import ENFORCE_AFFINITY_ENV, RESTORE_MONITOR_ENV
 from .logs import new_log_path, prune_logs
 from .models import Game, HvrunnerError
@@ -86,7 +86,7 @@ def _start_supervisor(game: Game, config: dict[str, Any], restore_monitor: str |
         supervisor_env[RESTORE_MONITOR_ENV] = restore_monitor
     try:
         subprocess.Popen(
-            watcher_command(Path(game.executable).name, game.install_dir),
+            watcher_command(game.executable, game.install_dir),
             env=supervisor_env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -109,13 +109,15 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     # Asked of the process table, not of the wineserver socket: Proton keeps a
     # wineserver alive after the game exits, so the socket says "busy" for a
     # prefix whose game closed minutes ago and would block every later launch.
-    if matching_game_pids(Path(game.executable).name, game.install_dir):
+    if matching_game_pids(Path(game.executable).name, *game_roots(game.executable, game.install_dir)):
         raise HvrunnerError(f"{game.name} is already running")
     # Before the game rather than after: Wine holds the registry in wineserver
     # and flushes it on exit, so anything written while the game owns the prefix
     # is discarded the moment it quits. A prefix Proton has not built yet has no
     # system.reg to read, so nothing runs and the launch is not made to wait.
-    repairs = prefix_module.repair(prepared.prefix, resolve_proton(config, game))
+    # A native Linux game has no prefix and no Wine, so there is nothing here to
+    # repair and no Proton build to repair it with.
+    repairs = prefix_module.repair(prepared.prefix, resolve_proton(config, game)) if prepared.prefix else []
     log_path = new_log_path(game)
     restore_monitor = drop_to_native_scale(config)
     try:

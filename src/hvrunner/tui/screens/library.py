@@ -13,9 +13,16 @@ KEYS = "enter run   S spacewar   e edit   a add   i install   r rescan   l logs 
 
 
 class LibraryScreen(Screen):
-    #: Only so a launch that dies can correct its own status line rather than
-    #: waiting for the next keypress to notice.
-    poll_interval = 500
+    @property
+    def poll_interval(self) -> int | None:
+        """Poll only while a launch is being followed.
+
+        The interval exists so a game that dies can correct its own status line
+        rather than waiting for a keypress. check_launch does nothing when
+        nothing is being watched, so polling then was a full redraw of the
+        screen twice a second, for the whole time a game was running.
+        """
+        return 500 if self.app.watching else None
 
     def refresh_data(self) -> None:
         self.app.check_launch()

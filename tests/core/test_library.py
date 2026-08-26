@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hvrunner.core.library import custom_games, display_name, executable_candidates, library, select_executable
+from hvrunner.core.library import (
+    custom_games,
+    display_name,
+    executable_candidates,
+    game_folder,
+    library,
+    select_executable,
+    sort_games,
+)
 
 
 def test_display_name_preserves_internal_capitals():
@@ -224,3 +232,120 @@ def test_a_scanned_game_has_no_steam_app_id(config, tmp_path):
     config["custom_games"] = []
     game = next(g for g in library(config) if g.name == "Scanned")
     assert game.steam_appid == ""
+
+
+# ---- where a hand-added binary belongs ---------------------------------------
+
+
+def test_game_folder_uses_the_library_subdirectory(tmp_path):
+    """The scan gives a game its library folder, so adding by hand must too.
+
+    Otherwise the same binary gets one prefix from the scan and another from
+    being added, and the second opens with none of the first one's saves.
+    """
+    root = tmp_path / "games"
+    executable = root / "Hitman" / "Hitman Absolution" / "HMA.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("stub")
+    assert game_folder(executable, [root]) == root / "Hitman"
+
+
+def test_game_folder_falls_back_to_the_binarys_own_folder(tmp_path):
+    executable = tmp_path / "elsewhere" / "Game.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("stub")
+    assert game_folder(executable, [tmp_path / "games"]) == executable.parent
+
+
+def test_game_folder_leaves_a_binary_directly_in_a_root_alone(tmp_path):
+    executable = tmp_path / "Game.exe"
+    executable.write_text("stub")
+    assert game_folder(executable, [tmp_path]) == tmp_path
+
+
+# ---- programs that are not a plain .exe --------------------------------------
+
+
+ELF = b"\x7fELF\x02\x01\x01\x00" + bytes(8)
+
+
+def _binary(path, data=ELF):
+    path.write_bytes(data)
+    path.chmod(0o755)
+    return path
+
+
+def test_a_native_game_is_found_when_there_is_no_windows_program(tmp_path):
+    folder = tmp_path / "LinuxGame"
+    folder.mkdir()
+    binary = _binary(folder / "LinuxGame.x86_64")
+    (folder / "readme.txt").write_text("not executable")
+    assert select_executable(folder) == binary
+
+
+def test_a_shell_launcher_counts_as_a_program(tmp_path):
+    folder = tmp_path / "Shipped"
+    folder.mkdir()
+    launcher = _binary(folder / "Shipped", b"#!/bin/sh\nexec ./game\n")
+    assert select_executable(folder) == launcher
+
+
+def test_data_files_with_the_executable_bit_are_not_offered(tmp_path):
+    """An Electron build ships every file mode 755, licences and .pak included."""
+    folder = tmp_path / "Electron"
+    folder.mkdir()
+    for name in ("LICENSES.chromium.html", "resources.pak", "icudtl.dat", "libEGL.so", "snapshot_blob.bin"):
+        _binary(folder / name, b"not a program at all")
+    assert select_executable(folder) is None
+    binary = _binary(folder / "Electron")
+    assert select_executable(folder) == binary
+
+
+def test_a_windows_program_is_preferred_over_a_native_one(tmp_path):
+    folder = tmp_path / "Both"
+    folder.mkdir()
+    _binary(folder / "Both")
+    (folder / "Both.exe").write_text("stub")
+    assert select_executable(folder) == folder / "Both.exe"
+
+
+def test_a_folder_of_data_offers_nothing(tmp_path):
+    folder = tmp_path / "Data"
+    folder.mkdir()
+    (folder / "readme.txt").write_text("stub")
+    assert select_executable(folder) is None
+
+
+def test_a_batch_launcher_counts_as_a_program(tmp_path):
+    folder = tmp_path / "Repack"
+    folder.mkdir()
+    (folder / "play.bat").write_text("stub")
+    assert select_executable(folder) == folder / "play.bat"
+
+
+def test_an_exe_beats_a_batch_file_of_the_same_name(tmp_path):
+    folder = tmp_path / "Repack"
+    folder.mkdir()
+    (folder / "Repack.bat").write_text("stub")
+    (folder / "Repack.exe").write_text("stub")
+    assert select_executable(folder) == folder / "Repack.exe"
+
+
+def test_the_scan_reaches_a_binary_four_levels_down(tmp_path):
+    """A repack adds a folder above the usual Unreal Binaries/Win64 layout."""
+    folder = tmp_path / "Deep"
+    nested = folder / "Repack" / "Game" / "Binaries" / "Win64"
+    nested.mkdir(parents=True)
+    (nested / "Deep-Win64-Shipping.exe").write_text("stub")
+    assert select_executable(folder) == nested / "Deep-Win64-Shipping.exe"
+
+
+# ---- ordering ----------------------------------------------------------------
+
+
+def test_sort_games_puts_favourites_first():
+    from hvrunner.core.models import Game
+
+    plain = Game("Alpha", "Custom", "/a", "/a/a.exe")
+    favourite = Game("Zeta", "Custom", "/z", "/z/z.exe", favorite=True)
+    assert [game.name for game in sort_games([plain, favourite])] == ["Zeta", "Alpha"]

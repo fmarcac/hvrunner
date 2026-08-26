@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .editline import EditLine, scroll_offset
+from .keys import BACKSPACE, END_KEYS, ESCAPE, KILL_TO_START, KILL_WORD, RETURN, START_KEYS, TAB
 from .text import fit
 from .theme import Theme
 from .widgets import draw_text
@@ -17,25 +18,9 @@ MINIMUM_HEIGHT = 7
 
 BOX_HEIGHT = 5
 
-# Terminals disagree about backspace: kitty sends DEL, others send ^H, and
-# ncurses only folds either onto KEY_BACKSPACE once keypad translation is on.
-# Accepting all three means the field erases whatever terminfo says.
-BACKSPACE = (curses.KEY_BACKSPACE, 8, 127)
-ESCAPE = 27
-RETURN = (10, 13, curses.KEY_ENTER)
-
-# Readline's control keys, which cost nothing to support and are what anyone
-# editing a long path in a terminal reaches for.
-START_KEYS = (curses.KEY_HOME, 1)
-END_KEYS = (curses.KEY_END, 5)
-KILL_TO_START = 21
-KILL_WORD = 23
-
 # ncurses waits a full second to decide whether an escape byte begins a
 # sequence, which makes cancelling feel broken. Process wide, so set once.
 ESCAPE_DELAY_MS = 25
-
-TAB = 9
 
 HINT = "^w word  ^u clear  esc cancel"
 BROWSE_HINT = "tab browse  ^w word  esc cancel"

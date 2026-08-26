@@ -121,7 +121,7 @@ def test_register_builds_the_expected_command(tmp_path, monkeypatch):
         recorded["env"] = kwargs.get("env")
         return Finished()
 
-    monkeypatch.setattr(prefix_module.subprocess, "run", fake_run)
+    monkeypatch.setattr(prefix_module.process, "run", fake_run)
     prefix = tmp_path / "p"
     prefix.mkdir()
     (prefix / "system.reg").write_text(CONTROLLER_ONLY)
@@ -141,8 +141,9 @@ def test_a_nonzero_exit_is_reported_not_raised(tmp_path, monkeypatch):
 
     class Finished:
         returncode = 5
+        stderr = "Unable to open registry\n"
 
-    monkeypatch.setattr(prefix_module.subprocess, "run", lambda command, **kwargs: Finished())
+    monkeypatch.setattr(prefix_module.process, "run", lambda command, **kwargs: Finished())
     prefix = tmp_path / "p"
     prefix.mkdir()
     (prefix / "system.reg").write_text(CONTROLLER_ONLY)

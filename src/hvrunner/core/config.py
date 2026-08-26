@@ -60,7 +60,15 @@ def default_config() -> dict[str, Any]:
     }
 
 
-_TYPE_NAMES: dict[type, str] = {bool: "a boolean", list: "a list", dict: "an object", str: "a string"}
+# Ordered pairs, not a mapping: bool has to be tested before anything it is a
+# subclass of, and a tuple says that rather than relying on how a dict happens
+# to iterate.
+_TYPE_NAMES: tuple[tuple[type, str], ...] = (
+    (bool, "a boolean"),
+    (list, "a list"),
+    (dict, "an object"),
+    (str, "a string"),
+)
 
 
 def _validate_type(key: str, value: Any, default: Any, path: Path) -> Any:
@@ -69,8 +77,7 @@ def _validate_type(key: str, value: Any, default: Any, path: Path) -> Any:
     A string where a list belongs is the dangerous case: iterating it yields
     characters, and every character would be treated as a library root.
     """
-    # bool must be checked before int-like types; bool is a subclass of int.
-    for expected_type, description in _TYPE_NAMES.items():
+    for expected_type, description in _TYPE_NAMES:
         if isinstance(default, expected_type):
             if not isinstance(value, expected_type):
                 raise HvrunnerError(f"cannot read {path}: {key!r} must be {description}")

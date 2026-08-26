@@ -8,23 +8,15 @@ layout.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...core.browsing import Want
 from ...core.config import expand
+from ..options import Option
 
 if TYPE_CHECKING:
     from .entry import EntryScreen
-
-
-@dataclass
-class Field:
-    label: str
-    detail: str
-    value: Callable[[], str]
-    activate: Callable[[], None]
 
 
 def _edit_text(screen: EntryScreen, key: str, label: str) -> Callable[[], None]:
@@ -64,13 +56,34 @@ def _edit_path(screen: EntryScreen, key: str, label: str, want: Want) -> Callabl
 def clean_steam_appid(value: str) -> str | None:
     """The id as it should be stored, or None when it is not usable.
 
-    Digits only. umu builds GAMEID as umu-<id> and matches it against
-    ^umu-[\\d\\w]+$, so anything else either fails that check or reaches Steam
-    as nonsense, and in both cases the launch runs as application 0 without
-    saying so.
+    Digits only. It reaches Steam as SteamAppId and protonfixes as the game id,
+    and anything that is not a number is either ignored or read as zero, in both
+    cases without saying so.
     """
     cleaned = value.strip()
     return cleaned if cleaned == "" or cleaned.isdigit() else None
+
+
+def parse_env(text: str) -> dict[str, str] | None:
+    """NAME=VALUE pairs, or None when one of them is not a pair.
+
+    Space separated, because the field is a single line. A value with a space in
+    it belongs in extra_env in the config file instead; nothing the Windows side
+    is configured with needs one.
+    """
+    values: dict[str, str] = {}
+    for item in text.split():
+        name, separator, value = item.partition("=")
+        if not separator or not name:
+            return None
+        values[name] = value
+    return values
+
+
+def format_env(values: object) -> str:
+    if not isinstance(values, dict) or not values:
+        return ""
+    return " ".join(f"{name}={value}" for name, value in values.items())
 
 
 def _edit_steam_appid(screen: EntryScreen) -> Callable[[], None]:
@@ -98,38 +111,53 @@ def _edit_args(screen: EntryScreen) -> Callable[[], None]:
     return action
 
 
-def build(screen: EntryScreen) -> list[Field]:
+def _edit_env(screen: EntryScreen) -> Callable[[], None]:
+    def action() -> None:
+        entered = screen.app.prompt("Environment, NAME=VALUE pairs", format_env(screen.entry.get("env")))
+        if entered is None:
+            return
+        parsed = parse_env(entered)
+        if parsed is None:
+            screen.app.status = f"Environment is NAME=VALUE pairs: {entered}"
+            return
+        screen.set_field("env", parsed)
+
+    return action
+
+
+def build(screen: EntryScreen) -> list[Option]:
     entry = screen.entry
     return [
-        Field(
+        Option(
             "Name",
             "What the library shows. Only this entry is affected.",
             lambda: str(entry.get("name", "")),
             _edit_text(screen, "name", "Name it"),
         ),
-        Field(
+        Option(
             "Executable",
-            "The binary that runs. Changing it moves the favourite with it, "
-            "because the favourite key is built from this path.",
+            "The binary that runs. A Windows program goes through Proton and "
+            "anything else is started directly. Changing this moves the "
+            "favourite with it, because the favourite key is built from it.",
             lambda: str(entry.get("executable", "")),
-            _edit_path(screen, "executable", "Path to a Windows executable", Want.EXECUTABLE),
+            _edit_path(screen, "executable", "Path to a game executable", Want.EXECUTABLE),
         ),
-        Field(
+        Option(
             "Steam app id",
             "Runs the game under this Steam application id and turns on Proton's "
             "Steam bridge. 480 is Spacewar, the id used for anything that is not "
-            "a Steam game. Blank runs under no id at all.",
+            "a Steam game. Blank lets hvrunner work it out.",
             lambda: str(entry.get("steam_appid", "")) or "none",
             _edit_steam_appid(screen),
         ),
-        Field(
+        Option(
             "Install folder",
             "Where the Proton prefix lives. For a game installed by an installer "
             "this is the game folder, not the folder holding the executable.",
             lambda: str(entry.get("install_dir", "")),
             _edit_path(screen, "install_dir", "Folder holding the prefix", Want.DIRECTORY),
         ),
-        Field(
+        Option(
             "Proton build",
             "A Proton build for this game alone, overriding the configured one. "
             "Wine features differ between builds: a game whose plugin wants a "
@@ -138,10 +166,18 @@ def build(screen: EntryScreen) -> list[Field]:
             lambda: str(entry.get("proton_path", "")) or "configured",
             _edit_path(screen, "proton_path", "Path to a Proton build", Want.DIRECTORY),
         ),
-        Field(
+        Option(
             "Launch arguments",
             "Passed to the executable after the Proton command.",
             lambda: " ".join(str(item) for item in entry.get("launch_args", [])) or "none",
             _edit_args(screen),
+        ),
+        Option(
+            "Environment",
+            "NAME=VALUE pairs for this game alone, applied after everything "
+            "else so they win. This is where a DXVK or NVAPI workaround for one "
+            "title belongs, rather than in the package.",
+            lambda: format_env(entry.get("env")) or "none",
+            _edit_env(screen),
         ),
     ]

@@ -11,17 +11,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...core.browsing import Want, human_size, listing
-from .. import keys, layout
-from ..text import fit, letterspace, shorten_path
+from .. import keys
+from ..text import shorten_path
 from ..widgets import Rect
-from .base import Screen
+from .base import ListDetailScreen
 
 if TYPE_CHECKING:
     from ..app import App
-
-# Backspace as "go up" costs nothing and is what a shell has trained everyone
-# to reach for. The raw codes are here for the same reason prompt lists them.
-BACK_KEYS = (8, 127)
 
 PICK_DIRECTORY = ord("s")
 
@@ -29,14 +25,16 @@ FILE_KEYS = "j k move   enter open or pick   h backspace up   esc cancel"
 DIRECTORY_KEYS = "j k move   enter open   h backspace up   s use this folder   esc cancel"
 
 
-class BrowseScreen(Screen):
+class BrowseScreen(ListDetailScreen):
+    title = "BROWSE"
+    max_list = 48
+
     def __init__(self, app: App, directory: Path, want: Want):
         super().__init__(app)
         self.want = want
         self.chosen: Path | None = None
         self.directory = directory
         self.entries = listing(directory, want)
-        self.cursor = 0
 
     # ---- state --------------------------------------------------------------
 
@@ -61,29 +59,23 @@ class BrowseScreen(Screen):
         if parent != self.directory:
             self._load(parent, keep=self.directory.name)
 
-    def _open(self) -> bool:
+    # ---- screen -------------------------------------------------------------
+
+    def labels(self) -> list[str]:
+        return [entry.name for entry in self.entries]
+
+    def footer_text(self) -> str:
+        return DIRECTORY_KEYS if self.want is Want.DIRECTORY else FILE_KEYS
+
+    def draw_detail(self, area: Rect) -> None:
+        if not self.entries:
+            return
         entry = self.entries[self.cursor]
+        self.paint.detail(area, entry.name, str(entry.path), "linux" if entry.is_dir else "windows")
         if not entry.is_dir:
-            self.chosen = entry.path
-            return False
-        self._load(entry.path, keep=self.directory.name if entry.is_parent else "")
-        return True
+            self.paint.text(area.top + 4, area.left, human_size(entry.size), area.width, "label")
 
-    # ---- drawing ------------------------------------------------------------
-
-    def draw(self) -> Rect:
-        footer = DIRECTORY_KEYS if self.want is Want.DIRECTORY else FILE_KEYS
-        inner = self.paint.frame(letterspace("BROWSE"), "", footer)
-        if inner.height < 4:
-            return inner
-        panes = layout.split(inner, min_list=22, max_list=48)
-        if self.entries:
-            self.paint.rows(panes.items, [entry.name for entry in self.entries], self.cursor)
-        else:
-            self.paint.text(panes.items.top, panes.items.left, "Nothing here.", panes.items.width, "label")
-        if panes.split and panes.detail and panes.divider_x is not None:
-            self.paint.divider(panes.divider_x, inner.top, inner.height - 1)
-            self._draw_detail(panes.detail)
+    def draw_status(self, inner: Rect) -> None:
         # The directory being listed is the context for every row, so it goes
         # where a message would and a message is not what this screen produces.
         self.paint.text(
@@ -93,42 +85,26 @@ class BrowseScreen(Screen):
             inner.width - 2,
             "linux",
         )
-        return inner
 
-    def _draw_detail(self, area: Rect) -> None:
-        if not self.entries:
-            return
+    def confirm(self) -> bool:
         entry = self.entries[self.cursor]
-        self.paint.text(area.top, area.left, fit(entry.name, area.width), area.width, "text", bold=True)
-        self.paint.text(
-            area.top + 2,
-            area.left,
-            shorten_path(str(entry.path), area.width, self.paint.glyph("ellipsis")),
-            area.width,
-            "linux" if entry.is_dir else "windows",
-        )
         if not entry.is_dir:
-            self.paint.text(area.top + 4, area.left, human_size(entry.size), area.width, "label")
-
-    # ---- keys ---------------------------------------------------------------
-
-    def handle(self, key: int) -> bool:
-        if keys.is_leave(key):
+            self.chosen = entry.path
             return False
-        if keys.is_left(key) or key in BACK_KEYS:
+        self._load(entry.path, keep=self.directory.name if entry.is_parent else "")
+        return True
+
+    def extra(self, key: int) -> bool | None:
+        if keys.is_back(key):
             self._up()
-        elif key == PICK_DIRECTORY and self.want is Want.DIRECTORY:
+            return True
+        if key == PICK_DIRECTORY and self.want is Want.DIRECTORY:
             self.chosen = self.directory
             return False
-        elif not self.entries:
+        if not self.entries:
+            # Nothing to move onto or open, so swallow the rest.
             return True
-        elif keys.is_down(key):
-            self.cursor = (self.cursor + 1) % len(self.entries)
-        elif keys.is_up(key):
-            self.cursor = (self.cursor - 1) % len(self.entries)
-        elif keys.is_confirm(key):
-            return self._open()
-        return True
+        return None
 
     def choose(self) -> Path | None:
         """Run the screen and return the picked path, or None when cancelled."""

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
-from hvrunner.core.affinity import all_cpus, watcher_command
+from hvrunner.core.affinity import all_cpus, game_roots, matching_game_pids, watcher_command
 from hvrunner.core.display import Monitor
 from hvrunner.core.launcher import alive, drop_to_native_scale, launch
 from hvrunner.core.models import HvrunnerError
@@ -200,7 +202,7 @@ def test_a_second_launch_is_refused_while_the_game_runs(config, state_home, stub
     executable.write_text("stub")
     game = Game("Busy", CUSTOM_SOURCE, str(folder), str(executable))
 
-    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, install_dir: [4242])
+    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, *roots: [4242])
     with pytest.raises(HvrunnerError, match="already running"):
         launcher_module.launch(game, config)
 
@@ -220,6 +222,68 @@ def test_a_quiet_prefix_still_launches(config, state_home, stub_tools, monkeypat
     executable.write_text("stub")
     game = Game("Quiet", CUSTOM_SOURCE, str(folder), str(executable))
 
-    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, install_dir: [])
+    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, *roots: [])
     monkeypatch.setattr(launcher_module.subprocess, "Popen", FakePopen)
     assert launcher_module.launch(game, config).pid == 99
+
+
+def test_the_watcher_is_given_the_whole_executable_path(tmp_path):
+    """It needs the folder the game runs in as well as the folder it lives in."""
+    command = watcher_command("/games/Game/Bin/Game.exe", "/games/Game")
+    assert command[-3:] == ["--affinity-watch", "/games/Game/Bin/Game.exe", "/games/Game"]
+
+
+def test_game_roots_covers_both_folders():
+    assert game_roots("/games/Game/Bin/Game.exe", "/games/Game") == ("/games/Game", "/games/Game/Bin")
+
+
+def test_a_nested_working_directory_still_matches(tmp_path):
+    """The bug that silently disabled affinity enforcement.
+
+    launch starts a game in the folder its binary is in, which is a level below
+    install_dir whenever the binary is nested, as Hitman's is. Comparing cwd
+    against install_dir alone matched nothing at all for those games.
+    """
+    install_dir = tmp_path / "Game"
+    nested = install_dir / "Binaries" / "Win64"
+    nested.mkdir(parents=True)
+    child = subprocess.Popen(["sleep", "5"], cwd=nested)
+    try:
+        found: list[int] = []
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            found = matching_game_pids("sleep", str(install_dir))
+            if child.pid in found:
+                break
+            time.sleep(0.02)
+        assert child.pid in found
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_an_unrelated_directory_does_not_match(tmp_path):
+    elsewhere = tmp_path / "Elsewhere"
+    elsewhere.mkdir()
+    other = tmp_path / "Game"
+    other.mkdir()
+    child = subprocess.Popen(["sleep", "5"], cwd=elsewhere)
+    try:
+        time.sleep(0.1)
+        assert child.pid not in matching_game_pids("sleep", str(other))
+    finally:
+        child.kill()
+        child.wait()
+
+
+def test_a_sibling_prefix_is_not_treated_as_containment(tmp_path):
+    """ "/games/Game2" must not count as inside "/games/Game"."""
+    inside = tmp_path / "Game2"
+    inside.mkdir()
+    child = subprocess.Popen(["sleep", "5"], cwd=inside)
+    try:
+        time.sleep(0.1)
+        assert child.pid not in matching_game_pids("sleep", str(tmp_path / "Game"))
+    finally:
+        child.kill()
+        child.wait()

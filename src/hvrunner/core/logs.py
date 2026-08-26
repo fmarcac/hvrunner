@@ -44,6 +44,10 @@ NOISE_PATTERNS = (
     "XI_BadDevice",
 )
 
+# Folded once at import. classify runs per line and the patterns are constants,
+# so casefolding them on every call was work with a fixed answer.
+_NOISE = tuple(pattern.casefold() for pattern in NOISE_PATTERNS)
+
 # A Wine crash announces itself without using any of the words that normally
 # mark a failure: "Unhandled page fault on read access to 90909090" contains
 # neither error nor failed, and would otherwise be drawn as ordinary output in
@@ -62,7 +66,7 @@ def classify(line: str) -> str:
     if line.startswith("$ "):
         return "command"
     lowered = line.casefold()
-    if any(pattern.casefold() in lowered for pattern in NOISE_PATTERNS):
+    if any(pattern in lowered for pattern in _NOISE):
         return "noise"
     if _ERROR_HINT.search(line):
         return "error"
@@ -81,18 +85,24 @@ def new_log_path(game: Game, now: float | None = None) -> Path:
     return directory / f"{stamp}-{game.slug}.log"
 
 
+def _log_files() -> list[Path]:
+    """Every kept log, newest first.
+
+    Sorting is by filename, which is a timestamp, so name order is time order.
+    """
+    try:
+        return sorted((path for path in log_dir().glob("*.log") if path.is_file()), reverse=True)
+    except OSError:
+        return []
+
+
 def prune_logs(keep: int = LOG_KEEP, budget: int = LOG_BUDGET_BYTES) -> None:
     """Drop the oldest logs, first by count and then by total size.
 
-    Sorting is by filename, which is a timestamp, so the newest comes first. It
-    is never dropped: it is the log of the launch that just happened, and very
-    likely still being written.
+    The newest is never dropped: it is the log of the launch that just happened,
+    and very likely still being written.
     """
-    directory = log_dir()
-    try:
-        files = sorted((path for path in directory.glob("*.log") if path.is_file()), reverse=True)
-    except OSError:
-        return
+    files = _log_files()
     for path in files[keep:]:
         path.unlink(missing_ok=True)
     total = 0
@@ -108,10 +118,7 @@ def prune_logs(keep: int = LOG_KEEP, budget: int = LOG_BUDGET_BYTES) -> None:
 
 
 def recent_logs(limit: int = LOG_KEEP) -> list[Path]:
-    try:
-        return sorted((path for path in log_dir().glob("*.log") if path.is_file()), reverse=True)[:limit]
-    except OSError:
-        return []
+    return _log_files()[:limit]
 
 
 class LogReader:
@@ -121,6 +128,10 @@ class LogReader:
         self.path = path
         self.tail_bytes = tail_bytes
         self.lines: list[str] = []
+        #: classify() for the line at the same index. Done once here rather than
+        #: per draw: a line never changes after it is appended, and the feed
+        #: redraws several times a second while a game is running.
+        self.kinds: list[str] = []
         self._offset = 0
         self._partial = ""
         self._drop_fragment = False
@@ -137,6 +148,7 @@ class LogReader:
             self._partial = ""
             self._drop_fragment = False
             self.lines.clear()
+            self.kinds.clear()
         if self._offset == 0 and size > self.tail_bytes:
             self._offset = size - self.tail_bytes
             # That seek lands mid line, so the first piece read is the tail of a
@@ -163,5 +175,6 @@ class LogReader:
             cleaned = clean_line(raw)
             if cleaned:
                 self.lines.append(cleaned)
+                self.kinds.append(classify(cleaned))
                 added = True
         return added

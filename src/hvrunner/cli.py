@@ -10,8 +10,9 @@ from typing import Any
 
 from .core import entries, installer
 from .core.affinity import supervise
+from .core.browsing import windows_program
 from .core.config import expand, load_config, save_config
-from .core.constants import APP_NAME, config_path
+from .core.constants import APP_NAME, WINDOWS_SUFFIXES, config_path
 from .core.launcher import launch, reap_children_automatically
 from .core.library import library
 from .core.logs import LogReader, recent_logs
@@ -25,7 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--launch", metavar="NAME", help="launch the single game matching NAME")
     parser.add_argument("--init-config", action="store_true", help="write default configuration if it is absent")
     parser.add_argument("--logs", action="store_true", help="print the most recent launch log and exit")
-    parser.add_argument("--affinity-watch", nargs=2, metavar=("EXE", "DIR"), help=argparse.SUPPRESS)
+    parser.add_argument("--affinity-watch", nargs=2, metavar=("EXECUTABLE", "DIR"), help=argparse.SUPPRESS)
     parser.add_argument("--install", metavar="PATH", help="run a Windows installer into a new game folder")
     parser.add_argument("--name", metavar="NAME", help="name for the game created by --install")
     return parser
@@ -44,11 +45,18 @@ def _print_latest_log() -> int:
     return 0
 
 
+def _installer_source(source_text: str) -> Path:
+    """The installer named on the command line, or a message saying why not."""
+    source = Path(expand(source_text))
+    if not source.is_file() or not windows_program(source):
+        kinds = ", ".join(sorted(WINDOWS_SUFFIXES))
+        raise HvrunnerError(f"no readable installer at {source}; expected one of {kinds}")
+    return source
+
+
 def _install(config: dict[str, Any], source_text: str, name: str | None) -> int:
     """Install headlessly, taking the top ranked binary rather than asking."""
-    source = Path(expand(source_text))
-    if not source.is_file() or source.suffix.lower() != ".exe":
-        raise HvrunnerError(f"no readable .exe at {source}")
+    source = _installer_source(source_text)
     roots = [Path(expand(str(root))) for root in config["library_roots"]]
     if not roots:
         raise HvrunnerError("no library folder is configured")
@@ -62,15 +70,7 @@ def _install(config: dict[str, Any], source_text: str, name: str | None) -> int:
     candidates = installer.discover(run.prefix, chosen_name)
     if not candidates:
         raise HvrunnerError(f"{chosen_name} installed, but no executable was found in {run.prefix}")
-    entries.add(
-        config,
-        {
-            "name": chosen_name,
-            "executable": str(candidates[0]),
-            "install_dir": str(target),
-            "launch_args": [],
-        },
-    )
+    entries.add(config, entries.declare(chosen_name, candidates[0], target))
     save_config(config_path(), config)
     print(f"Added {chosen_name} -> {candidates[0]}")
     return 0
@@ -109,7 +109,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.list:
             for game in games:
                 star = "*" if game.favorite else " "
-                print(f"{star}\t{game.source}\t{game.name}\t{game.executable}")
+                kind = "windows" if game.windows else "native"
+                print(f"{star}\t{game.source}\t{kind}\t{game.name}\t{game.executable}")
             return 0
         run_tui(config, path)
     except HvrunnerError as error:

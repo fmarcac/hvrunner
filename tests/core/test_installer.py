@@ -74,3 +74,26 @@ def test_discover_skips_windows_and_uninstallers(tmp_path):
 
 def test_discover_on_an_empty_prefix(tmp_path):
     assert installer.discover(tmp_path / "absent", "Witcher3") == []
+
+
+def test_a_native_binary_is_not_a_windows_installer(tmp_path):
+    """Proton cannot run an ELF file, and fails without saying why."""
+    from hvrunner.core.browsing import windows_program
+
+    binary = tmp_path / "setup"
+    binary.write_text("stub")
+    binary.chmod(0o755)
+    assert not windows_program(binary)
+    assert windows_program(tmp_path / "setup.exe")
+    assert windows_program(tmp_path / "setup.MSI")
+
+
+def test_an_msi_installer_goes_through_msiexec(config, state_home, tmp_path):
+    from hvrunner.core.installer import install_command
+
+    source = tmp_path / "Game.msi"
+    source.write_text("stub")
+    target = tmp_path / "Target"
+    target.mkdir()
+    command, _, _ = install_command(source, target, config)
+    assert command[-3:] == ["msiexec", "/i", "Game.msi"]

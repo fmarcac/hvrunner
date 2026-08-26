@@ -7,9 +7,10 @@ a file read, so a prefix that is already correct costs one open.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
+from . import process
+from .constants import REGISTER_TIMEOUT
 from .models import HvrunnerError
 
 # Where Wine looks a WinRT class up before activating it.
@@ -25,10 +26,6 @@ ACTIVATABLE = "Software\\Microsoft\\WindowsRuntime\\ActivatableClassId"
 WINRT_CLASSES = {
     "Windows.System.DispatcherQueue": "C:\\windows\\system32\\coremessaging.dll",
 }
-
-# Long enough for a cold prefix update, short enough that a wedged wineserver
-# cannot hold a launch open forever.
-REGISTER_TIMEOUT = 120.0
 
 
 def create(prefix: Path) -> None:
@@ -80,10 +77,12 @@ def registered(prefix: Path, name: str) -> bool:
     nothing to report.
     """
     try:
-        text = (prefix / "system.reg").read_text(errors="replace")
+        data = (prefix / "system.reg").read_bytes()
     except OSError:
         return True
-    return marker(name) in text
+    # Searched as bytes. system.reg runs to megabytes and the marker is ASCII,
+    # so decoding the whole file to look for it is work with no answer in it.
+    return marker(name).encode() in data
 
 
 def missing(prefix: Path) -> dict[str, str]:
@@ -110,19 +109,22 @@ def register(prefix: Path, proton: Path, name: str, dll: str) -> str:
     ]
     if not wine.is_file():
         return f"cannot register {name}: no wine at {wine}"
-    try:
-        finished = subprocess.run(
-            command,
-            env={"WINEPREFIX": str(prefix), "WINEDEBUG": "-all", "PATH": "/usr/bin:/bin"},
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            timeout=REGISTER_TIMEOUT,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        return f"cannot register {name}: {error}"
+    # process.run, not subprocess.run. The interface ignores SIGCHLD so a
+    # launched game never becomes a zombie, and the kernel then reaps this
+    # helper before subprocess can wait for it, leaving Popen to record status 0
+    # however it exited. Every failed registration was written into the launch
+    # log as a successful one, for the single repair that keeps a WinRT game
+    # from dying inside DllMain.
+    finished = process.run(
+        command,
+        env={"WINEPREFIX": str(prefix), "WINEDEBUG": "-all", "PATH": "/usr/bin:/bin"},
+        timeout=REGISTER_TIMEOUT,
+    )
+    if finished is None:
+        return f"cannot register {name}: wine could not be run"
     if finished.returncode != 0:
-        return f"registering {name} exited {finished.returncode}"
+        detail = finished.stderr.strip().splitlines()
+        return f"registering {name} exited {finished.returncode}: {detail[-1] if detail else 'no output'}"
     return f"registered {name} -> {dll}"
 
 

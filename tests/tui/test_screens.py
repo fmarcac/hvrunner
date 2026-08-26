@@ -3,7 +3,7 @@ from __future__ import annotations
 import curses
 from types import SimpleNamespace
 
-from hvrunner.tui.screens.base import Screen
+from hvrunner.tui.screens.base import ListDetailScreen, Screen
 
 
 class FakeScreen:
@@ -112,3 +112,77 @@ def test_a_nested_screen_does_not_steal_the_interval():
     # 500 to start, 400 while nested, then 500 again. The old code left the
     # nested screen's restore of -1 in place here, and the outer never re-set it.
     assert app.screen.timeouts == [500, 400, 500]
+
+
+# ---- the shared list and detail screen ---------------------------------------
+
+
+class Listing(ListDetailScreen):
+    """A ListDetailScreen with the drawing removed, to exercise its keys."""
+
+    def __init__(self, app, items=("one", "two", "three")):
+        super().__init__(app)
+        self.items = list(items)
+        self.activated: list[int] = []
+
+    def labels(self):
+        return self.items
+
+    def draw(self):
+        return None
+
+    def confirm(self):
+        self.activated.append(self.cursor)
+        return True
+
+
+def _drive(keys, items=("one", "two", "three")):
+    app = fake_app([*keys, ord("q")])
+    screen = Listing(app, items)
+    screen.run()
+    return screen
+
+
+def test_the_cursor_moves_down_and_wraps():
+    assert _drive([ord("j"), ord("j"), ord("j")]).cursor == 0
+
+
+def test_the_cursor_moves_up_and_wraps():
+    assert _drive([ord("k")]).cursor == 2
+
+
+def test_the_arrow_keys_move_too():
+    assert _drive([curses.KEY_DOWN]).cursor == 1
+
+
+def test_enter_activates_what_the_cursor_is_on():
+    assert _drive([ord("j"), 10]).activated == [1]
+
+
+def test_an_empty_list_does_not_move_or_divide_by_zero():
+    assert _drive([ord("j"), ord("k"), 10], items=()).cursor == 0
+
+
+def test_escape_leaves():
+    app = fake_app([27])
+    Listing(app).run()
+    # It stopped on the escape rather than falling through to the trailing q.
+    assert app.screen.keys == []
+
+
+class Extra(Listing):
+    """A screen with a binding of its own, which must win over movement."""
+
+    def extra(self, key):
+        if key == ord("j"):
+            self.items = []
+            return True
+        return None
+
+
+def test_a_screens_own_binding_wins_over_the_shared_one():
+    app = fake_app([ord("j"), ord("q")])
+    screen = Extra(app)
+    screen.run()
+    assert screen.items == []
+    assert screen.cursor == 0

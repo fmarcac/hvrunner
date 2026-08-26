@@ -18,10 +18,28 @@ def draft(game: Game) -> dict[str, Any]:
         "name": game.name,
         "executable": game.executable,
         "install_dir": game.install_dir,
-        # Carried so that promoting a game launched under an id does not
-        # silently drop the id it was launched with.
+        # Carried so that promoting a game launched under an id, or under a
+        # Proton build of its own, does not silently drop either.
         "steam_appid": game.steam_appid,
+        "proton_path": game.proton_path,
         "launch_args": list(game.launch_args),
+        "env": dict(game.env),
+    }
+
+
+def declare(name: str, executable: Path | str, install_dir: Path | str) -> dict[str, Any]:
+    """The entry for a game that has just been added or installed.
+
+    install_dir is always set, never left to be inferred. Inferring it gives the
+    executable's own folder, which is a level too deep for a nested binary, and
+    the same game added by hand and found by the scan would then disagree about
+    where its prefix lives and open with none of its saves.
+    """
+    return {
+        "name": name,
+        "executable": str(executable),
+        "install_dir": str(install_dir),
+        "launch_args": [],
     }
 
 

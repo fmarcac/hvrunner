@@ -12,7 +12,7 @@ import curses
 from dataclasses import dataclass
 from typing import Any
 
-from .text import fit, shorten_path
+from .text import fit, shorten_path, wrap
 from .theme import Theme
 
 
@@ -164,3 +164,21 @@ class Painter:
         value_width = width - column - 1
         if value_width > 0:
             self.text(y, value_x, shorten_path(value, value_width, self.glyph("ellipsis")), value_width, role)
+
+    def detail(self, area: Rect, label: str, value: str, role: str = "text", about: str = "") -> None:
+        """The right hand pane of a list-and-detail screen.
+
+        What the cursor is on, what it is set to, and what that means. Four
+        screens drew this, and three of them drew it identically.
+        """
+        if area.width <= 0:
+            return
+        self.text(area.top, area.left, fit(label, area.width), area.width, "text", bold=True)
+        self.text(area.top + 2, area.left, shorten_path(value, area.width, self.glyph("ellipsis")), area.width, role)
+        if not about:
+            return
+        self.section(area.top + 4, area.left, area.width, "about")
+        for offset, line in enumerate(wrap(about, area.width)):
+            if area.top + 5 + offset > area.bottom:
+                break
+            self.text(area.top + 5 + offset, area.left, line, area.width, "label")

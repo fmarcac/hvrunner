@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from dataclasses import dataclass
 
-TIMEOUT_SECONDS = 5
+from . import process
+from .constants import HYPRCTL_TIMEOUT
 
 
 @dataclass(frozen=True)
@@ -73,19 +73,18 @@ def parse_monitors(payload: str) -> list[Monitor]:
 
 
 def _run(arguments: list[str]) -> str | None:
+    """hyprctl's output, or None when it could not be run or refused.
+
+    Routed through core.process so the return code survives the SIGCHLD
+    disposition the interface sets. Called directly, every hyprctl reported
+    success whatever it did, which made apply() answer True for a scale change
+    that never happened and left the supervisor restoring a scale nothing had
+    ever set.
+    """
     if not available():
         return None
-    try:
-        finished = subprocess.run(
-            ["hyprctl", *arguments],
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if finished.returncode != 0:
+    finished = process.run(["hyprctl", *arguments], timeout=HYPRCTL_TIMEOUT)
+    if finished is None or finished.returncode != 0:
         return None
     return finished.stdout
 

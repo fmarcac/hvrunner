@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from ..core import entries, installer
-from ..core.browsing import Want
+from ..core.browsing import Want, launchable, windows_program
 from ..core.config import expand, save_config, unknown_keys
 from ..core.constants import LAUNCH_SETTLE_SECONDS, SPACEWAR_APPID
 from ..core.launcher import alive, launch
-from ..core.library import display_name, library
+from ..core.library import display_name, game_folder, library, sort_games
 from ..core.models import Game, HvrunnerError
 from . import prompt as prompt_module
 from .paths import ask_for_path
@@ -72,11 +72,25 @@ class App:
         except HvrunnerError as error:
             self.status = str(error)
 
+    def _keep_cursor_on(self, key: str) -> None:
+        self.selected = next((index for index, game in enumerate(self.games) if game.key == key), 0)
+        self.selected = min(self.selected, max(0, len(self.games) - 1))
+
     def rescan(self) -> None:
         previous = self.games[self.selected].key if self.games else ""
         self.games = library(self.config)
-        self.selected = next((i for i, game in enumerate(self.games) if game.key == previous), 0)
-        self.selected = min(self.selected, max(0, len(self.games) - 1))
+        self._keep_cursor_on(previous)
+
+    def resort(self) -> None:
+        """Re-sort what is already in memory after a favourite changed.
+
+        Not a rescan. The scan walks every library folder and stats what it
+        finds, which for one boolean is a tenth of a second of disk for nothing.
+        """
+        favourites = {str(item) for item in self.config["favorites"]}
+        previous = self.games[self.selected].key if self.games else ""
+        self.games = sort_games([replace(game, favorite=game.key in favourites) for game in self.games])
+        self._keep_cursor_on(previous)
 
     def move(self, step: int) -> None:
         if self.games:
@@ -90,6 +104,9 @@ class App:
 
     def prompt_path(self, label: str, want: Want, initial: str = "") -> str | None:
         return ask_for_path(self, label, want, initial)
+
+    def library_roots(self) -> list[Path]:
+        return [Path(expand(str(root))) for root in self.config["library_roots"]]
 
     # ---- actions ------------------------------------------------------------
 
@@ -142,19 +159,23 @@ class App:
             self.status = f"{game.name} is a favourite"
         self.config["favorites"] = sorted(favourites)
         self.save()
-        self.rescan()
+        self.resort()
 
     def add_executable(self) -> None:
-        entered = self.prompt_path("Path to a Windows executable", Want.EXECUTABLE)
+        entered = self.prompt_path("Path to a game executable", Want.EXECUTABLE)
         if not entered:
             return
         path = Path(expand(entered))
-        if not path.is_file() or path.suffix.lower() != ".exe":
-            self.status = f"No readable .exe at {path}"
+        if not launchable(path):
+            self.status = f"Nothing runnable at {path}"
             return
-        default = display_name(path.parent)
+        # The library subdirectory, not the binary's own folder, so a game added
+        # by hand and the same game found by the scan agree on where its prefix
+        # lives rather than ending up with one each.
+        folder = game_folder(path, self.library_roots())
+        default = display_name(folder)
         name = self.prompt("Name it", default) or default
-        self.config["custom_games"].append({"name": name, "executable": str(path)})
+        entries.add(self.config, entries.declare(name, path, folder))
         self.save()
         self.rescan()
         self.status = f"Added {name}"
@@ -166,7 +187,7 @@ class App:
         EntryScreen(self, game).run()
 
     def _install_root(self) -> Path | None:
-        roots = [Path(expand(str(root))) for root in self.config["library_roots"]]
+        roots = self.library_roots()
         if not roots:
             self.status = "No library folder configured. Add one in settings."
             return None
@@ -180,8 +201,11 @@ class App:
         if not entered:
             return
         source = Path(expand(entered))
-        if not source.is_file() or source.suffix.lower() != ".exe":
-            self.status = f"No readable .exe at {source}"
+        # A Windows program specifically, not merely something runnable: this
+        # one is handed to Proton, and a native binary given to Wine fails
+        # without saying why.
+        if not source.is_file() or not windows_program(source):
+            self.status = f"Not a Windows installer: {source}"
             return
         name = self.prompt("Name it", source.stem) or source.stem
         root = self._install_root()
@@ -212,15 +236,7 @@ class App:
         if chosen is None:
             self.status = f"{name} installed. Nothing was added to the library."
             return
-        entries.add(
-            self.config,
-            {
-                "name": name,
-                "executable": str(candidates[chosen]),
-                "install_dir": str(run.target),
-                "launch_args": [],
-            },
-        )
+        entries.add(self.config, entries.declare(name, candidates[chosen], run.target))
         self.save()
         self.rescan()
         self.status = f"Added {name}"

@@ -5,19 +5,19 @@ from pathlib import Path
 import pytest
 
 from hvrunner.core.models import Game, HvrunnerError
-from hvrunner.core.planning import build_command, plan
+from hvrunner.core.planning import plan
 
 
 def test_gamemode_wraps_the_command(game_factory, config, stub_tools):
     game = game_factory("Plain.exe")
-    command, _ = build_command(game, config)
+    command = plan(game, config, prepare=True).command
     assert command[0].endswith("gamemoderun")
     assert command[1].endswith("mangohud")
 
 
 def test_gamemode_can_be_disabled(game_factory, config, stub_tools):
     config["use_gamemode"] = False
-    command, _ = build_command(game_factory("Plain.exe"), config)
+    command = plan(game_factory("Plain.exe"), config, prepare=True).command
     assert not command[0].endswith("gamemoderun")
     assert command[0].endswith("mangohud")
 
@@ -28,13 +28,13 @@ def test_launch_args_are_appended(config, stub_tools, tmp_path):
     executable = folder / "Plain.exe"
     executable.write_text("stub")
     game = Game("G", "Custom", str(folder), str(executable), launch_args=("-dx12", "-windowed"))
-    command, _ = build_command(game, config)
+    command = plan(game, config, prepare=True).command
     assert command[-2:] == ["-dx12", "-windowed"]
 
 
 def test_prefix_is_created_inside_the_game_folder(game_factory, config, stub_tools):
     game = game_factory("Plain.exe")
-    _, env = build_command(game, config)
+    env = plan(game, config, prepare=True).environment
     prefix = Path(game.install_dir) / ".hvrunner-proton"
     assert env["WINEPREFIX"] == str(prefix)
     assert prefix.is_dir()
@@ -43,19 +43,19 @@ def test_prefix_is_created_inside_the_game_folder(game_factory, config, stub_too
 def test_missing_proton_is_reported(game_factory, config, stub_tools, tmp_path):
     config["proton_path"] = str(tmp_path / "absent")
     with pytest.raises(HvrunnerError, match="Proton runtime is unavailable"):
-        build_command(game_factory("Plain.exe"), config)
+        plan(game_factory("Plain.exe"), config, prepare=True)
 
 
 def test_proton_path_pointing_at_the_binary_is_accepted(game_factory, config, stub_tools, fake_proton):
     config["proton_path"] = str(fake_proton / "proton")
-    _, env = build_command(game_factory("Plain.exe"), config)
+    env = plan(game_factory("Plain.exe"), config, prepare=True).environment
     assert env["PROTONPATH"] == str(fake_proton)
 
 
 def test_missing_executable_is_reported(config, stub_tools, tmp_path):
     game = Game("Gone", "Custom", str(tmp_path), str(tmp_path / "gone.exe"))
     with pytest.raises(HvrunnerError, match="game executable is unavailable"):
-        build_command(game, config)
+        plan(game, config, prepare=True)
 
 
 def test_a_missing_wrapper_does_not_stop_a_launch(game_factory, config, monkeypatch):
@@ -63,13 +63,14 @@ def test_a_missing_wrapper_does_not_stop_a_launch(game_factory, config, monkeypa
     import hvrunner.core.planning as planning
 
     monkeypatch.setattr(planning.shutil, "which", lambda name: None)
-    command, _ = build_command(game_factory("Plain.exe"), config)
+    command = plan(game_factory("Plain.exe"), config, prepare=True).command
     assert command[0].endswith("proton")
 
 
 def test_mangohud_can_be_disabled(game_factory, config, stub_tools):
     config["use_mangohud"] = False
-    command, env = build_command(game_factory("Plain.exe"), config)
+    prepared = plan(game_factory("Plain.exe"), config, prepare=True)
+    command, env = prepared.command, prepared.environment
     assert not any(part.endswith("mangohud") for part in command)
     assert command[0].endswith("gamemoderun")
     assert "MANGOHUD" not in env
@@ -80,7 +81,7 @@ def test_disabling_mangohud_overrides_an_inherited_setting(game_factory, config,
     monkeypatch.setenv("MANGOHUD", "1")
     monkeypatch.setenv("MANGOHUD_CONFIG", "fps")
     config["use_mangohud"] = False
-    _, env = build_command(game_factory("Plain.exe"), config)
+    env = plan(game_factory("Plain.exe"), config, prepare=True).environment
     assert "MANGOHUD" not in env
     assert "MANGOHUD_CONFIG" not in env
 
@@ -88,7 +89,7 @@ def test_disabling_mangohud_overrides_an_inherited_setting(game_factory, config,
 def test_both_wrappers_can_be_disabled(game_factory, config, stub_tools):
     config["use_mangohud"] = False
     config["use_gamemode"] = False
-    command, _ = build_command(game_factory("Plain.exe"), config)
+    command = plan(game_factory("Plain.exe"), config, prepare=True).command
     assert command[0].endswith("proton")
 
 
@@ -141,7 +142,7 @@ def test_every_game_runs_through_proton(game_factory, config, stub_tools, fake_p
     """umu is gone. It blanked STEAM_COMPAT_CLIENT_INSTALL_PATH, and every
     Steam facing failure this launcher had came from that."""
     game = game_factory("Plain.exe")
-    command, _ = build_command(game, config)
+    command = plan(game, config, prepare=True).command
     assert command[-3:] == [str(fake_proton / "proton"), "run", game.executable]
 
 
@@ -166,7 +167,7 @@ def test_preview_still_touches_nothing(game_factory, config, stub_tools):
 def test_proton_is_run_not_waited_on(game_factory, config, stub_tools):
     """waitforexitandrun blocks until the prefix is empty and prints nothing
     while it waits, so a launch into a busy prefix hung and read as a failure."""
-    command, _ = build_command(game_factory("Plain.exe"), config)
+    command = plan(game_factory("Plain.exe"), config, prepare=True).command
     assert "run" in command
     assert "waitforexitandrun" not in command
 
@@ -183,11 +184,121 @@ def test_a_game_can_name_its_own_proton(config, stub_tools, tmp_path):
     executable = folder / "Picky.exe"
     executable.write_text("stub")
     game = Game("Picky", "Custom", str(folder), str(executable), proton_path=str(other))
-    command, env = build_command(game, config)
+    prepared = plan(game, config, prepare=True)
+    command, env = prepared.command, prepared.environment
     assert env["PROTONPATH"] == str(other)
     assert command[-3] == str(other / "proton")
 
 
 def test_without_one_the_configured_build_is_used(game_factory, config, stub_tools, fake_proton):
-    _, env = build_command(game_factory("Plain.exe"), config)
+    env = plan(game_factory("Plain.exe"), config, prepare=True).environment
     assert env["PROTONPATH"] == str(fake_proton)
+
+
+# ---- programs that are not a plain .exe -------------------------------------
+
+
+def _native(tmp_path, name="start.sh", executable=True):
+    from hvrunner.core.constants import CUSTOM_SOURCE
+
+    folder = tmp_path / "Native"
+    folder.mkdir(exist_ok=True)
+    binary = folder / name
+    binary.write_text("#!/bin/sh\nexit 0\n")
+    if executable:
+        binary.chmod(0o755)
+    return Game("Native", CUSTOM_SOURCE, str(folder), str(binary))
+
+
+def test_a_native_binary_runs_without_proton(config, stub_tools, tmp_path, monkeypatch):
+    for name in ("PROTONPATH", "WINEPREFIX", "STEAM_COMPAT_DATA_PATH", "SteamAppId"):
+        monkeypatch.delenv(name, raising=False)
+    prepared = plan(_native(tmp_path), config, prepare=True)
+    assert prepared.prefix is None
+    assert not any("proton" in part.casefold() for part in prepared.command)
+    assert prepared.command[-1].endswith("start.sh")
+    assert "STEAM_COMPAT_DATA_PATH" not in prepared.environment
+    assert "WINEPREFIX" not in prepared.environment
+
+
+def test_a_native_binary_still_gets_the_wrappers(config, stub_tools, tmp_path):
+    command = plan(_native(tmp_path), config, prepare=True).command
+    assert command[0].endswith("gamemoderun")
+    assert command[1].endswith("mangohud")
+
+
+def test_a_native_launch_builds_no_prefix(config, stub_tools, tmp_path):
+    game = _native(tmp_path)
+    plan(game, config, prepare=True)
+    assert not (Path(game.install_dir) / config["custom_prefix_name"]).exists()
+
+
+def test_a_file_that_is_not_executable_is_refused(config, stub_tools, tmp_path):
+    game = _native(tmp_path, name="data.bin", executable=False)
+    with pytest.raises(HvrunnerError, match="not executable"):
+        plan(game, config, prepare=True)
+
+
+def test_a_batch_file_goes_through_cmd(game_factory, config, stub_tools):
+    command = plan(game_factory("play.bat"), config, prepare=True).command
+    # A bare filename, because cmd does not take a unix path and the launcher
+    # already starts it in the file's own folder.
+    assert command[-3:] == ["cmd", "/c", "play.bat"]
+
+
+def test_an_msi_goes_through_msiexec(game_factory, config, stub_tools):
+    command = plan(game_factory("Setup.msi"), config, prepare=True).command
+    assert command[-3:] == ["msiexec", "/i", "Setup.msi"]
+
+
+def test_an_exe_is_handed_over_by_path(game_factory, config, stub_tools):
+    game = game_factory("Plain.exe")
+    command = plan(game, config, prepare=True).command
+    assert command[-1] == game.executable
+
+
+# ---- resolving the Proton build ---------------------------------------------
+
+
+def test_a_build_directory_named_proton_is_not_stripped(game_factory, config, stub_tools, tmp_path):
+    """The last component being "proton" does not make it the proton script."""
+    build = tmp_path / "compat" / "proton"
+    build.mkdir(parents=True)
+    (build / "proton").write_text("stub")
+    (build / "toolmanifest.vdf").write_text("stub")
+    config["proton_path"] = str(build)
+    assert plan(game_factory("Plain.exe"), config, prepare=True).environment["PROTONPATH"] == str(build)
+
+
+def test_an_unusable_build_is_named_as_the_user_wrote_it(game_factory, config, stub_tools, tmp_path):
+    config["proton_path"] = str(tmp_path / "nowhere" / "proton")
+    with pytest.raises(HvrunnerError, match="nowhere/proton"):
+        plan(game_factory("Plain.exe"), config, prepare=True)
+
+
+# ---- per entry environment ---------------------------------------------------
+
+
+def test_an_entrys_environment_is_applied_last(game_factory, config, stub_tools):
+    from dataclasses import replace
+
+    game = replace(game_factory("Plain.exe"), env=(("DXVK_HUD", "fps"), ("WINEDEBUG", "-all")))
+    env = plan(game, config, prepare=True).environment
+    assert env["DXVK_HUD"] == "fps"
+    # It wins over what hvrunner sets, which is the point of it.
+    assert env["WINEDEBUG"] == "-all"
+
+
+def test_an_entrys_environment_beats_the_global_one(game_factory, config, stub_tools):
+    from dataclasses import replace
+
+    config["extra_env"] = {"SHARED": "global"}
+    game = replace(game_factory("Plain.exe"), env=(("SHARED", "entry"),))
+    assert plan(game, config, prepare=True).environment["SHARED"] == "entry"
+
+
+def test_a_native_launch_takes_the_entrys_environment_too(config, stub_tools, tmp_path):
+    from dataclasses import replace
+
+    game = replace(_native(tmp_path), env=(("SDL_VIDEODRIVER", "wayland"),))
+    assert plan(game, config, prepare=True).environment["SDL_VIDEODRIVER"] == "wayland"

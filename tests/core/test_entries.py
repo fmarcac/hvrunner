@@ -11,7 +11,9 @@ def test_draft_describes_a_scanned_game(game_factory):
         "executable": game.executable,
         "install_dir": game.install_dir,
         "steam_appid": "",
+        "proton_path": "",
         "launch_args": [],
+        "env": {},
     }
 
 
@@ -66,3 +68,57 @@ def test_remove_drops_the_entry_and_its_favourite(config, game_factory):
 
 def test_remove_reports_when_there_was_nothing(config):
     assert entries.remove(config, "/nowhere/absent.exe") is False
+
+
+def test_declare_always_sets_the_install_folder():
+    """Left unset, it is inferred as the binary's own folder, a level too deep."""
+    entry = entries.declare("Hitman", "/games/Hitman/Hitman Absolution/HMA.exe", "/games/Hitman")
+    assert entry == {
+        "name": "Hitman",
+        "executable": "/games/Hitman/Hitman Absolution/HMA.exe",
+        "install_dir": "/games/Hitman",
+        "launch_args": [],
+    }
+
+
+def test_declare_accepts_paths(tmp_path):
+    entry = entries.declare("G", tmp_path / "G.exe", tmp_path)
+    assert entry["executable"] == str(tmp_path / "G.exe")
+    assert entry["install_dir"] == str(tmp_path)
+
+
+def test_a_declared_entry_reaches_the_library_with_its_folder(config, tmp_path):
+    from hvrunner.core.library import library
+
+    folder = tmp_path / "Hitman"
+    executable = folder / "Hitman Absolution" / "HMA.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("stub")
+    entries.add(config, entries.declare("Hitman", executable, folder))
+    game = next(item for item in library(config) if item.name == "Hitman")
+    assert game.install_dir == str(folder)
+
+
+def test_an_entry_carries_its_environment_into_the_game(config, tmp_path):
+    from hvrunner.core.library import library
+
+    executable = tmp_path / "G" / "G.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("stub")
+    entry = entries.declare("G", executable, executable.parent)
+    entry["env"] = {"DXVK_HUD": "fps"}
+    entries.add(config, entry)
+    game = next(item for item in library(config) if item.name == "G")
+    assert game.env == (("DXVK_HUD", "fps"),)
+
+
+def test_a_malformed_environment_is_ignored_rather_than_fatal(config, tmp_path):
+    from hvrunner.core.library import library
+
+    executable = tmp_path / "G" / "G.exe"
+    executable.parent.mkdir(parents=True)
+    executable.write_text("stub")
+    entry = entries.declare("G", executable, executable.parent)
+    entry["env"] = "DXVK_HUD=fps"
+    entries.add(config, entry)
+    assert next(item for item in library(config) if item.name == "G").env == ()
