@@ -12,7 +12,7 @@ from typing import Any
 
 from . import display
 from . import prefix as prefix_module
-from .affinity import game_roots, matching_game_pids, watcher_command
+from .affinity import game_roots, matching_game_pids, starting_launch_pids, watcher_command
 from .constants import ENFORCE_AFFINITY_ENV, RESTORE_MONITOR_ENV
 from .logs import new_log_path, prune_logs
 from .models import Game, HvrunnerError
@@ -111,6 +111,11 @@ def launch(game: Game, config: dict[str, Any]) -> LaunchResult:
     # prefix whose game closed minutes ago and would block every later launch.
     if matching_game_pids(Path(game.executable).name, *game_roots(game.executable, game.install_dir)):
         raise HvrunnerError(f"{game.name} is already running")
+    # The game's own process appears only once Proton has started it; until
+    # then the wrapper is the evidence. Without this, pressing launch again
+    # during the startup second started a second copy.
+    if starting_launch_pids(game.executable):
+        raise HvrunnerError(f"{game.name} is already starting")
     # Before the game rather than after: Wine holds the registry in wineserver
     # and flushes it on exit, so anything written while the game owns the prefix
     # is discarded the moment it quits. A prefix Proton has not built yet has no

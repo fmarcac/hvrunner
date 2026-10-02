@@ -60,6 +60,47 @@ def game_roots(executable: str, install_dir: str) -> tuple[str, ...]:
     return (install_dir, str(Path(executable).parent))
 
 
+# argv[0]/argv[n] basenames that mean "a launch of this game is under way":
+# Proton's script, umu, and the steam.exe shim Proton parents the game with.
+LAUNCH_WRAPPERS = ("proton", "umu-run", "steam.exe")
+
+
+def starting_launch_pids(executable: str) -> list[int]:
+    """Pids of launch wrappers that were handed this executable.
+
+    matching_game_pids only sees the game once Proton has started it, a second
+    or two after the launch, and a launch made inside that window started a
+    second copy -- two windows, and two instances fighting over one save. The
+    wrapper carries the executable as an argument from its first instant and
+    lives as long as the game does, so it answers "already launched" with no
+    gap. hvrunner's own supervisor names the executable too, but it is not a
+    wrapper, and it outlives a launch that died -- counting it would refuse
+    every relaunch for the length of its startup timeout.
+
+    Only asked once per launch, so reading every cmdline is affordable here
+    where it would not be in the supervisor's loop.
+    """
+    wanted = executable.encode()
+    matches: list[int] = []
+    try:
+        with os.scandir("/proc") as scanner:
+            names = [entry.name for entry in scanner if entry.name.isdigit()]
+    except OSError:
+        return []
+    for name in names:
+        try:
+            with open(f"/proc/{name}/cmdline", "rb") as handle:
+                argv = handle.read().split(b"\0")
+        except OSError:
+            continue
+        if wanted not in argv:
+            continue
+        basenames = {os.path.basename(arg.replace(b"\\", b"/")).decode(errors="replace").lower() for arg in argv}
+        if basenames.intersection(LAUNCH_WRAPPERS):
+            matches.append(int(name))
+    return matches
+
+
 def matching_game_pids(executable_name: str, *roots: str) -> list[int]:
     """Pids whose comm is this executable and whose cwd is inside one of roots.
 

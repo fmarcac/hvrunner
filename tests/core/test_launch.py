@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -287,3 +288,45 @@ def test_a_sibling_prefix_is_not_treated_as_containment(tmp_path):
     finally:
         child.kill()
         child.wait()
+
+
+def test_a_launch_still_starting_counts_as_running(tmp_path):
+    """The double launch: Proton takes a second or two to start the game, and
+    the comm/cwd match finds nothing in that window, so a second Enter started
+    a second copy. The wrapper is visible from the first instant."""
+    from hvrunner.core.affinity import starting_launch_pids
+
+    executable = str(tmp_path / "Game" / "Game.exe")
+    wrapper = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(5)", "/opt/proton/proton", "run", executable]
+    )
+    supervisor = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)", "--affinity-watch", executable])
+    try:
+        time.sleep(0.1)
+        found = starting_launch_pids(executable)
+        assert wrapper.pid in found
+        # The supervisor names the executable too, and outlives a failed
+        # launch; counting it would block relaunching for its whole timeout.
+        assert supervisor.pid not in found
+        assert starting_launch_pids(str(tmp_path / "Other" / "Game.exe")) == []
+    finally:
+        for child in (wrapper, supervisor):
+            child.kill()
+            child.wait()
+
+
+def test_launch_refuses_while_the_previous_launch_is_starting(config, state_home, stub_tools, monkeypatch, tmp_path):
+    import hvrunner.core.launcher as launcher_module
+    from hvrunner.core.constants import CUSTOM_SOURCE
+    from hvrunner.core.models import Game, HvrunnerError
+
+    folder = tmp_path / "Slow"
+    folder.mkdir()
+    executable = folder / "Slow.exe"
+    executable.write_text("stub")
+    game = Game("Slow", CUSTOM_SOURCE, str(folder), str(executable))
+
+    monkeypatch.setattr(launcher_module, "matching_game_pids", lambda name, *roots: [])
+    monkeypatch.setattr(launcher_module, "starting_launch_pids", lambda path: [4243])
+    with pytest.raises(HvrunnerError, match="already starting"):
+        launcher_module.launch(game, config)
